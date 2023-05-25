@@ -1,9 +1,15 @@
+from __future__ import annotations
+
+from abc import ABC
+from abc import abstractmethod
+from collections import OrderedDict
+from copy import copy
+
 import torch
 import torch.nn as nn
-from copy import copy
-from abc import ABC, abstractmethod
-from collections import OrderedDict
+
 from .operations import Identity
+
 
 class Decoder(ABC):
     """
@@ -20,6 +26,7 @@ class Decoder(ABC):
     @abstractmethod
     def get_model(self):
         raise NotImplementedError()
+
 
 def phase_active(gene):
     """
@@ -49,7 +56,7 @@ class ChannelBasedDecoder(Decoder):
 
         # First, we remove all inactive phases.
         self._genome = self.get_effective_genome(list_genome)
-        self._channels = channels[:len(self._genome)]
+        self._channels = channels[: len(self._genome)]
 
         # Use the provided repeats list, or a list of all ones (only repeat each phase once).
         if repeats is not None:
@@ -84,10 +91,14 @@ class ChannelBasedDecoder(Decoder):
             for j in range(repeat):
                 if j == 0:
                     # This is the first instance of this repeat, we need to use the (in, out) channel convention.
-                    repeated_channels.append((self._channels[i][0], self._channels[i][1]))
+                    repeated_channels.append(
+                        (self._channels[i][0], self._channels[i][1]),
+                    )
                 else:
                     # This is not the first instance, use the (out, out) convention.
-                    repeated_channels.append((self._channels[i][1], self._channels[i][1]))
+                    repeated_channels.append(
+                        (self._channels[i][1], self._channels[i][1]),
+                    )
 
                 repeated_genome.append(self._genome[i])
 
@@ -105,7 +116,9 @@ class ChannelBasedDecoder(Decoder):
         for phase, repeat in zip(phases, self._repeats):
             for _ in range(repeat):
                 layers.append(phase)
-            layers.append(nn.MaxPool2d(kernel_size=2, stride=2))  # TODO: Generalize this, or consider a new genome.
+            layers.append(
+                nn.MaxPool2d(kernel_size=2, stride=2),
+            )  # TODO: Generalize this, or consider a new genome.
 
         layers.append(last_phase)
         return layers
@@ -122,7 +135,7 @@ class ChannelBasedDecoder(Decoder):
     @abstractmethod
     def get_model(self):
         raise NotImplementedError()
-    
+
 
 class ResidualNode(nn.Module):
     """
@@ -130,8 +143,9 @@ class ResidualNode(nn.Module):
     Does convolution, batchnorm, and relu (in this order).
     """
 
-    def __init__(self, in_channels, out_channels, stride=1,
-                 kernel_size=3, padding=1, bias=False):
+    def __init__(
+        self, in_channels, out_channels, stride=1, kernel_size=3, padding=1, bias=False,
+    ):
         """
         Constructor.
         Default arguments preserve dimensionality of input.
@@ -143,12 +157,19 @@ class ResidualNode(nn.Module):
         :param padding: amount of zero padding, default 1.
         :param bias: true to use bias, false to not.
         """
-        super(ResidualNode, self).__init__()
+        super().__init__()
 
         self.model = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias),
+            nn.Conv2d(
+                in_channels,
+                out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                bias=bias,
+            ),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
         )
 
     def forward(self, x):
@@ -158,6 +179,7 @@ class ResidualNode(nn.Module):
         :return: Variable.
         """
         return self.model(x)
+
 
 class PreactResidualNode(nn.Module):
     """
@@ -165,8 +187,9 @@ class PreactResidualNode(nn.Module):
     Does batchnorm, relu, and convolution (in this order).
     """
 
-    def __init__(self, in_channels, out_channels, stride=1,
-                 kernel_size=3, padding=1, bias=False):
+    def __init__(
+        self, in_channels, out_channels, stride=1, kernel_size=3, padding=1, bias=False,
+    ):
         """
         Constructor.
         Default arguments preserve dimensionality of input.
@@ -178,12 +201,19 @@ class PreactResidualNode(nn.Module):
         :param padding: amount of zero padding, default 1.
         :param bias: true to use bias, false to not.
         """
-        super(PreactResidualNode, self).__init__()
+        super().__init__()
 
         self.model = nn.Sequential(
             nn.BatchNorm2d(in_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
+            nn.Conv2d(
+                in_channels,
+                out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                bias=bias,
+            ),
         )
 
     def forward(self, x):
@@ -193,8 +223,8 @@ class PreactResidualNode(nn.Module):
         :return: Variable.
         """
         return self.model(x)
-    
-    
+
+
 class ResidualPhase(nn.Module):
     """
     Residual Genome phase.
@@ -209,10 +239,18 @@ class ResidualPhase(nn.Module):
         :param idx: int, index in the network.
         :param preact: should we use the preactivation scheme?
         """
-        super(ResidualPhase, self).__init__()
+        super().__init__()
 
-        self.channel_flag = in_channels != out_channels  # Flag to tell us if we need to increase channel size.
-        self.first_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1 if idx != 0 else 3, stride=1, bias=False)
+        self.channel_flag = (
+            in_channels != out_channels
+        )  # Flag to tell us if we need to increase channel size.
+        self.first_conv = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=1 if idx != 0 else 3,
+            stride=1,
+            bias=False,
+        )
         self.dependency_graph = ResidualPhase.build_dependency_graph(gene)
 
         if preact:
@@ -234,17 +272,21 @@ class ResidualPhase(nn.Module):
         # At this point, we know which nodes will be receiving input from where.
         # So, we build the 1x1 convolutions that will deal with the depth-wise concatenations.
         #
-        conv1x1s = [Identity()] + [Identity() for _ in range(max(self.dependency_graph.keys()))]
+        conv1x1s = [Identity()] + [
+            Identity() for _ in range(max(self.dependency_graph.keys()))
+        ]
         for node_idx, dependencies in self.dependency_graph.items():
             if len(dependencies) > 1:
-                conv1x1s[node_idx] = \
-                    nn.Conv2d(len(dependencies) * out_channels, out_channels, kernel_size=1, bias=False)
+                conv1x1s[node_idx] = nn.Conv2d(
+                    len(dependencies) * out_channels,
+                    out_channels,
+                    kernel_size=1,
+                    bias=False,
+                )
 
         self.processors = nn.ModuleList(conv1x1s)
-        self.out = nn.Sequential(
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
-        )
+        self.out = nn.Sequential(nn.BatchNorm2d(
+            out_channels), nn.ReLU(inplace=True))
 
     @staticmethod
     def build_dependency_graph(gene):
@@ -262,7 +304,8 @@ class ResidualPhase(nn.Module):
         # First pass, build the graph without repairs.
         graph[1] = []
         for i in range(len(gene) - 1):
-            graph[i + 2] = [j + 1 for j in range(len(gene[i])) if gene[i][j] == 1]
+            graph[i + 2] = [j +
+                            1 for j in range(len(gene[i])) if gene[i][j] == 1]
 
         graph[len(gene) + 1] = [0] if residual else []
 
@@ -305,7 +348,8 @@ class ResidualPhase(nn.Module):
                 outputs.append(None)
 
             else:
-                outputs.append(self.nodes[i - 1](self.process_dependencies(i, outputs)))
+                outputs.append(
+                    self.nodes[i - 1](self.process_dependencies(i, outputs)))
 
         return self.out(self.process_dependencies(len(self.nodes) + 1, outputs))
 
@@ -316,7 +360,10 @@ class ResidualPhase(nn.Module):
         :param outputs: list, current outputs
         :return: Variable
         """
-        return self.processors[node_idx](torch.cat([outputs[i] for i in self.dependency_graph[node_idx]], dim=1))
+        return self.processors[node_idx](
+            torch.cat([outputs[i]
+                      for i in self.dependency_graph[node_idx]], dim=1),
+        )
 
 
 class ResidualGenomeDecoder(ChannelBasedDecoder):
@@ -338,8 +385,13 @@ class ResidualGenomeDecoder(ChannelBasedDecoder):
 
         # Build up the appropriate number of phases.
         phases = []
-        for idx, (gene, (in_channels, out_channels)) in enumerate(zip(self._genome, self._channels)):
-            phases.append(ResidualPhase(gene, in_channels, out_channels, idx, preact=preact))
+        for idx, (gene, (in_channels, out_channels)) in enumerate(
+            zip(self._genome, self._channels),
+        ):
+            phases.append(
+                ResidualPhase(gene, in_channels, out_channels,
+                              idx, preact=preact),
+            )
 
         self._model = nn.Sequential(*self.build_layers(phases))
 
@@ -348,31 +400,44 @@ class ResidualGenomeDecoder(ChannelBasedDecoder):
         :return: nn.Module
         """
         return self._model
-    
-    
+
 
 class ConnAndOpsDecoder(ChannelBasedDecoder):
     def __init__(self, list_genome, channels, repeats=None):
         super().__init__(list_genome, channels, repeats)
-        
+
         if self._model is not None:
             return
-        
+
         phases = []
-        for idx, (gene, (in_channels, out_channels)) in enumerate(zip(self._genome, self._channels)):
-            phases.append(ResidualPhase(gene, in_channels, out_channels, idx, preact=preact))
+        for idx, (gene, (in_channels, out_channels)) in enumerate(
+            zip(self._genome, self._channels),
+        ):
+            phases.append(
+                ResidualPhase(gene, in_channels, out_channels,
+                              idx, preact=preact),
+            )
 
         self._model = nn.Sequential(*self.build_layers(phases))
-        
-        
+
+
 def test_residual_decoder():
-    genome = [[[1], [0, 0], [0, 1, 0], [0, 1, 1, 1], [1, 0, 0, 1, 1], [0]],
-              [[0], [0, 0], [0, 1, 0], [0, 1, 0, 1], [1, 1, 1, 1, 1], [0]],
-              [[0], [0, 1], [1, 0, 1], [1, 0, 1, 1], [1, 0, 0, 1, 1], [0]]]
-    model = ResidualGenomeDecoder(genome, [(3, 128), (128, 128), (128, 128)]).get_model()
+    genome = [
+        [[1], [0, 0], [0, 1, 0], [0, 1, 1, 1], [1, 0, 0, 1, 1], [0]],
+        [[0], [0, 0], [0, 1, 0], [0, 1, 0, 1], [1, 1, 1, 1, 1], [0]],
+        [[0], [0, 1], [1, 0, 1], [1, 0, 1, 1], [1, 0, 0, 1, 1], [0]],
+    ]
+    model = ResidualGenomeDecoder(
+        genome, [(3, 128), (128, 128), (128, 128)],
+    ).get_model()
     print(model)
-    
+
+
 def test_decoder():
-    genome = [[[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]], [[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]]]
-    model = ConnAndOpsDecoder(genome, [(3, 128), (128, 128), (128, 128)]).get_model()
+    genome = [
+        [[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]],
+        [[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]],
+    ]
+    model = ConnAndOpsDecoder(
+        genome, [(3, 128), (128, 128), (128, 128)]).get_model()
     print(model)

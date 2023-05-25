@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import hashlib
 import logging
-from logging import config
 import os
 import time
+from logging import config
 from pathlib import Path
 
 from .config_options.option_def import MyProgramArgs
@@ -10,70 +12,59 @@ from .config_options.option_def import MyProgramArgs
 
 def logging_setup_dict_config() -> dict:
     return {
-        "loggers": {
-            "src": {
-                "level": "INFO",
-                "propagate": False,
-                "handlers": [
-                    "console",
-                    "file",
-                    "errorlog"
-                ]
+        'loggers': {
+            'src': {
+                'level': 'INFO',
+                'propagate': False,
+                'handlers': ['console', 'file', 'errorlog'],
             },
         },
-        "version": 1,
-        "disable_existing_loggers": True,
-        "handlers": {
-            "console": {
-                "formatter": "default",
-                "class": "logging.StreamHandler",
-                "stream": "ext://sys.stdout",
-                "level": "NOTSET"
+        'version': 1,
+        'disable_existing_loggers': True,
+        'handlers': {
+            'console': {
+                'formatter': 'default',
+                'class': 'logging.StreamHandler',
+                'stream': 'ext://sys.stdout',
+                'level': 'NOTSET',
             },
-            "errorlog": {
-                "delay": True,
-                "formatter": "default",
-                "mode": "a",
-                "encoding": "utf-8",
-                "level": "ERROR",
-                "class": "logging.FileHandler"
+            'errorlog': {
+                'delay': True,
+                'formatter': 'default',
+                'mode': 'a',
+                'encoding': 'utf-8',
+                'level': 'ERROR',
+                'class': 'logging.FileHandler',
             },
-            "file": {
-                "class": "logging.FileHandler",
-                "formatter": "default",
-                "mode": "a",
-                "level": "NOTSET",
-                "encoding": "utf-8"
-            }
+            'file': {
+                'class': 'logging.FileHandler',
+                'formatter': 'default',
+                'mode': 'a',
+                'level': 'NOTSET',
+                'encoding': 'utf-8',
+            },
         },
-        "root": {
-            "level": "INFO",
-            "handlers": [
-                "console",
-                "file",
-                "errorlog"
-            ]
+        'root': {'level': 'INFO', 'handlers': ['console', 'file', 'errorlog']},
+        'formatters': {
+            'default': {
+                'datefmt': '%Y/%m/%d-%H:%M:%S',
+                'format': '[%(asctime)s-%(process)d-%(levelname)-7s-%(name)s-#%(lineno)d] %(message)s',
+            },
         },
-        "formatters": {
-            "default": {
-                "datefmt": "%Y/%m/%d-%H:%M:%S",
-                "format": "[%(asctime)s-%(process)d-%(levelname)-7s-%(name)s-#%(lineno)d] %(message)s"
-            }
-        }
     }
 
 
 def get_truncated_sha(src, length):
-    m = hashlib.sha256(bytes(str(src), encoding="utf8"))
+    m = hashlib.sha256(bytes(str(src), encoding='utf8'))
     return m.hexdigest()[:length]
 
 
 def timestamp():
-    return time.strftime("%m%d_%H%M", time.localtime())
+    return time.strftime('%m%d_%H%M', time.localtime())
 
 
 def get_time_sha(args):
-    return f"{timestamp()}_{get_truncated_sha(args, 20)}"
+    return f'{timestamp()}_{get_truncated_sha(args, 20)}'
 
 
 def setup_logger(dir, fn, disable_stream_output, debug):
@@ -82,7 +73,7 @@ def setup_logger(dir, fn, disable_stream_output, debug):
     print(f'[setup_logger] {dir}')
     dir.mkdir(parents=True, exist_ok=True)
     for fh, suffix in zip(['file', 'errorlog'], ['.log', '.err']):
-        config_dict['handlers'][fh]['filename'] = dir.joinpath(fn+suffix)
+        config_dict['handlers'][fh]['filename'] = dir.joinpath(fn + suffix)
 
     if debug:
         for k in config_dict['loggers'].keys():
@@ -98,7 +89,7 @@ def setup_logger(dir, fn, disable_stream_output, debug):
     return logging.getLogger()
 
 
-class LoggerManager():
+class LoggerManager:
     def __init__(self) -> None:
         pass
 
@@ -109,20 +100,26 @@ class LoggerManager():
             args.systemOption.job_dir,
             main_name,
             args.systemOption.disable_stream_output,
-            args.systemOption.debug
+            args.systemOption.debug,
         )
 
     @staticmethod
     def get_task_logger(args: MyProgramArgs):
-        args.systemOption.task_name = f"{args.expOption.dataset}_{args.expOption.model}_TSHA{get_time_sha(args)}"
+        args.systemOption.task_name = (
+            f'{args.expOption.dataset}_{args.expOption.model}_TSHA{get_time_sha(args)}'
+        )
         args.systemOption.update_dir()
         args.systemOption.mkdir()
-        args.save_yaml(args.systemOption.task_dir + "/hparam.yaml")
-        print('[get_task_logger]', args.systemOption.task_dir,
-              '[get_cwd_task]', os.getcwd())
+        args.save_yaml(args.systemOption.task_dir + '/hparam.yaml')
+        print(
+            '[get_task_logger]',
+            args.systemOption.task_dir,
+            '[get_cwd_task]',
+            os.getcwd(),
+        )
         setup_logger(
             args.systemOption.task_dir,
-            f"train_{get_time_sha(args)}",
+            f'train_{get_time_sha(args)}',
             disable_stream_output=args.systemOption.disable_stream_output,
             debug=args.systemOption.debug,
         )

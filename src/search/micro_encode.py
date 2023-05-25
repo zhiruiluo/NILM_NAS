@@ -1,9 +1,12 @@
 # NASNet Search Space https://arxiv.org/pdf/1707.07012.pdf
 # code modified from DARTS https://github.com/quark0/darts
-import numpy as np
+from __future__ import annotations
+
 from collections import namedtuple
 
+import numpy as np
 import torch
+
 # from models.micro_models import NetworkCIFAR as Network
 
 Genotype = namedtuple('Genotype', 'normal normal_concat reduce reduce_concat')
@@ -26,20 +29,21 @@ PRIMITIVES = [
 
 def convert_cell(cell_bit_string):
     # convert cell bit-string to genome
-    tmp = [cell_bit_string[i:i + 2] for i in range(0, len(cell_bit_string), 2)]
-    return [tmp[i:i + 2] for i in range(0, len(tmp), 2)]
+    tmp = [cell_bit_string[i: i + 2]
+           for i in range(0, len(cell_bit_string), 2)]
+    return [tmp[i: i + 2] for i in range(0, len(tmp), 2)]
 
 
 def convert(bit_string):
     # convert network bit-string (norm_cell + redu_cell) to genome
-    norm_gene = convert_cell(bit_string[:len(bit_string)//2])
-    redu_gene = convert_cell(bit_string[len(bit_string)//2:])
+    norm_gene = convert_cell(bit_string[: len(bit_string) // 2])
+    redu_gene = convert_cell(bit_string[len(bit_string) // 2:])
     return [norm_gene, redu_gene]
 
 
 def decode_cell(genome, norm=True):
     print(genome)
-    cell, cell_concat = [], list(range(2, len(genome)+2))
+    cell, cell_concat = [], list(range(2, len(genome) + 2))
     for block in genome:
         for unit in block:
             cell.append((PRIMITIVES[unit[0]], unit[1]))
@@ -57,8 +61,8 @@ def decode(genome):
     normal_cell = genome[0]
     reduce_cell = genome[1]
 
-    normal, normal_concat = [], list(range(2, len(normal_cell)+2))
-    reduce, reduce_concat = [], list(range(2, len(reduce_cell)+2))
+    normal, normal_concat = [], list(range(2, len(normal_cell) + 2))
+    reduce, reduce_concat = [], list(range(2, len(reduce_cell) + 2))
 
     for block in normal_cell:
         for unit in block:
@@ -73,8 +77,10 @@ def decode(genome):
                 reduce_concat.remove(unit[1])
 
     return Genotype(
-        normal=normal, normal_concat=normal_concat,
-        reduce=reduce, reduce_concat=reduce_concat
+        normal=normal,
+        normal_concat=normal_concat,
+        reduce=reduce,
+        reduce_concat=reduce_concat,
     )
 
 
@@ -96,10 +102,8 @@ def compare_cell(cell_string1, cell_string2):
 
 def compare(string1, string2):
 
-    if compare_cell(string1[:len(string1)//2],
-                    string2[:len(string2)//2]):
-        if compare_cell(string1[len(string1)//2:],
-                        string2[len(string2)//2:]):
+    if compare_cell(string1[: len(string1) // 2], string2[: len(string2) // 2]):
+        if compare_cell(string1[len(string1) // 2:], string2[len(string2) // 2:]):
             return True
 
     return False
@@ -117,11 +121,12 @@ def debug():
         bit_string = []
         for c in range(n_cell):
             for b in range(B):
-                bit_string += [np.random.randint(n_ops),
-                               np.random.randint(b + 2),
-                               np.random.randint(n_ops),
-                               np.random.randint(b + 2)
-                               ]
+                bit_string += [
+                    np.random.randint(n_ops),
+                    np.random.randint(b + 2),
+                    np.random.randint(n_ops),
+                    np.random.randint(b + 2),
+                ]
         print(bit_string)
         genome = convert(bit_string)
         # check against evaluated networks in case of duplicates
@@ -143,7 +148,7 @@ def debug():
         #     print(design_id)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     # debug()
     # genome1 = [[[[3, 0], [3, 1]], [[3, 0], [3, 1]],
     #             [[3, 1], [2, 0]], [[2, 0], [5, 2]]],

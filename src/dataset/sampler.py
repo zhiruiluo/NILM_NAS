@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 from typing import Callable
 
 import pandas as pd
-import torch
 import torch.utils.data
 import torchvision
 
@@ -24,23 +25,25 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
         callback_get_label: Callable = None,
     ):
         # if indices is not provided, all elements in the dataset will be considered
-        self.indices = list(range(len(dataset))) if indices is None else indices
+        self.indices = list(range(len(dataset))
+                            ) if indices is None else indices
 
         # define custom callback
         self.callback_get_label = callback_get_label
 
         # if num_samples is not provided, draw `len(indices)` samples in each iteration
-        self.num_samples = len(self.indices) if num_samples is None else num_samples
+        self.num_samples = len(
+            self.indices) if num_samples is None else num_samples
 
         # distribution of classes in the dataset
         df = pd.DataFrame()
-        df["label"] = self._get_labels(dataset) if labels is None else labels
+        df['label'] = self._get_labels(dataset) if labels is None else labels
         df.index = self.indices
         df = df.sort_index()
 
-        label_to_count = df["label"].value_counts()
+        label_to_count = df['label'].value_counts()
 
-        weights = 1.0 / label_to_count[df["label"]]
+        weights = 1.0 / label_to_count[df['label']]
 
         self.weights = torch.DoubleTensor(weights.to_list())
 
@@ -63,7 +66,10 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
             raise NotImplementedError
 
     def __iter__(self):
-        return (self.indices[i] for i in torch.multinomial(self.weights, self.num_samples, replacement=True))
+        return (
+            self.indices[i]
+            for i in torch.multinomial(self.weights, self.num_samples, replacement=True)
+        )
 
     def __len__(self):
         return self.num_samples

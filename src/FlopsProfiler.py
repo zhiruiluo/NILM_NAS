@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 
 import torch
@@ -50,23 +52,24 @@ class FlopsProfiler:
 
     def _ptflops_(self, model, shape):
         macs, params = get_model_complexity_info(
-            model, shape, print_per_layer_stat=self.print_flag, as_strings=False
+            model, shape, print_per_layer_stat=self.print_flag, as_strings=False,
         )
         return macs, params
 
     def _fvcore_(self, model, shape):
-        flops_counter = FlopCountAnalysis(model, torch.rand(self.batch_size, *shape))
+        flops_counter = FlopCountAnalysis(
+            model, torch.rand(self.batch_size, *shape))
         flops = flops_counter.total()
         return flops
 
     def get_flops(self, model, input_shape=None, args=[], kwargs={}) -> int:
         if get_num_gpus() >= 1:
-            flops, macs, params = self._deepspeed_(model, input_shape, args, kwargs)
-            logger.info(f"flops: {flops} macs: {macs} params: {params}")
+            flops, macs, params = self._deepspeed_(
+                model, input_shape, args, kwargs)
+            logger.info(f'flops: {flops} macs: {macs} params: {params}')
         else:
             raise ValueError('Error')
             flops = self._fvcore_(model, input_shape)
             macs, params = self._ptflops_(model, input_shape)
-            logger.info(f"flops: {flops} macs: {macs} params: {params}")
+            logger.info(f'flops: {flops} macs: {macs} params: {params}')
         return flops
-

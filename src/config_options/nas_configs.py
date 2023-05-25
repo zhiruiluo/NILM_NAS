@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import dataclasses
+
 from simple_parsing import Serializable
 
 

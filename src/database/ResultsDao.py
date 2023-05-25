@@ -1,4 +1,6 @@
 from __future__ import annotations
+from sqlalchemy import func
+
 import logging
 from typing import List
 
@@ -17,14 +19,15 @@ class ResultDao:
     def save_result(self, result: ExpResults, args: MyProgramArgs) -> None:
         pass
 
-    def get_result(self, model, dataset) -> List[object]:
+    def get_result(self, model, dataset) -> list[object]:
         pass
 
-    def get_all_results(self) -> List[object]:
+    def get_all_results(self) -> list[object]:
         pass
 
-    def get_best_entry_by_metrics(self, metrics: str | List[str]):
+    def get_best_entry_by_metrics(self, metrics: str | list[str]):
         pass
+
 
 # class EnhancedJSONEncoder(json.JSONEncoder):
 #     def default(self, o):
@@ -34,8 +37,6 @@ class ResultDao:
 #             return vars(o)
 #         return super().default(o)
 
-
-from sqlalchemy import func
 
 class ResultSqliteDao(ResultDao):
     def __init__(self, sqlite_engine: SQLiteEngine):
@@ -62,8 +63,9 @@ class ResultSqliteDao(ResultDao):
             params=result.params.dumps_json(),
             nas_params=result.nas_params,
         )
-        logger.info(f"[ResultSqlitDao] save results to {self.sqlite_engine.db_path}")
-        logger.info(f"[ResultSqlitDao]  *********\n {result_} \n *********")
+        logger.info(
+            f'[ResultSqlitDao] save results to {self.sqlite_engine.db_path}')
+        logger.info(f'[ResultSqlitDao]  *********\n {result_} \n *********')
         self.sqlite_engine.insert(result_)
 
     # def get_best_config(self, model, dataset):
@@ -78,28 +80,28 @@ class ResultSqliteDao(ResultDao):
         logger.info(objs)
         return objs
 
-    def get_all_results(self) -> List:
+    def get_all_results(self) -> list:
         results = Results()
         statm = self.sqlite_engine.get_statement_exact_match(results)
         objs = self.sqlite_engine.get_all(statm)
         return objs
 
-    def get_best_entry_by_metrics(self, metrics: List[str] | str):
+    def get_best_entry_by_metrics(self, metrics: list[str] | str):
         logger.info(metrics)
         if isinstance(metrics, list):
-            statm = [
-                    Results.id
-                ]
+            statm = [Results.id]
             for m in metrics:
                 statm.append(func.max(getattr(Results, m)))
             q = self.sqlite_engine.query(*statm)
         else:
             statm = [
                 Results.id,
-                func.max(getattr(Results,metrics)),
+                func.max(getattr(Results, metrics)),
             ]
             q = self.sqlite_engine.query(*statm)
-        statm = Results.__table__.select().where(Results.__table__.columns.id==q[0].id)
+        statm = Results.__table__.select().where(
+            Results.__table__.columns.id == q[0].id,
+        )
         q = self.sqlite_engine.get_all(statm)
         return q
 
@@ -109,5 +111,5 @@ class ResultDaoFactory:
         self._engine = engine
 
     def get_dao(self):
-        if self._engine.engine_name() == "SQLite":
+        if self._engine.engine_name() == 'SQLite':
             return ResultSqliteDao(self._engine)

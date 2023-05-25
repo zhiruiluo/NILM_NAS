@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 from einops import rearrange
 from sklearn.ensemble import RandomForestClassifier
 
 from src.base_module.base_sklearn import SklearnBaseModule
 from src.config_options import MyProgramArgs
 from src.config_options.model_configs import ModelConfig_RF
+
 
 class RF(SklearnBaseModule):
     def __init__(self, args: MyProgramArgs) -> None:

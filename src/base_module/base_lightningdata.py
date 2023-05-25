@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from operator import itemgetter
 
@@ -8,12 +10,14 @@ from ml_toolkit.datautils.utils import find_class
 from ml_toolkit.utils.normalization import get_norm_cls
 from pytorch_lightning import LightningDataModule
 from torch import tensor
-from torch.utils.data.dataloader import DataLoader, Dataset
+from torch.utils.data.dataloader import DataLoader
+from torch.utils.data.dataloader import Dataset
 from torch.utils.data.dataset import TensorDataset
 
 from src.config_options.option_def import MyProgramArgs
 
 logger = logging.getLogger(__name__)
+
 
 class MyDataset(Dataset):
     def __init__(self, x, y):
@@ -25,6 +29,7 @@ class MyDataset(Dataset):
 
     def __len__(self):
         return self.x.size(0)
+
 
 def get_norm_func(norm_type):
     mask_axis = (2,)
@@ -54,11 +59,11 @@ class LightningBaseDataModule(LightningDataModule):
         self.args = args
         self.prepare_data_per_node = False
         self.allow_zero_length_dataloader_with_multiple_devices = False
-        self.save_hyperparameters(ignore=["args"])
+        self.save_hyperparameters(ignore=['args'])
 
     @property
     def dataname(self):
-        return "default_dataset"
+        return 'default_dataset'
 
     def get_spliter(self) -> IndexSpliter:
         return None
@@ -75,7 +80,10 @@ class LightningBaseDataModule(LightningDataModule):
     def on_prepare_split(self):
         train_index, val_index, test_index = self.spliter.get_split()
         subdataset = []
-        for x, y in zip(*index_to_subset(self.X, self.y, [train_index, val_index, test_index])):
+        for x, y in zip(
+            *index_to_subset(self.X, self.y,
+                             [train_index, val_index, test_index]),
+        ):
             subdataset.append([x, y])
 
         self.train_x, self.train_y = subdataset[0]
@@ -83,8 +91,9 @@ class LightningBaseDataModule(LightningDataModule):
         self.test_x, self.test_y = subdataset[2]
 
     def on_setup_normlize(self, data_x, data_y, stage=None):
-        logger.debug(f"[norm_type] stage {stage} {self.args.dataBaseConfig.norm_type}")
-        if stage in (None, "fit"):
+        logger.debug(
+            f'[norm_type] stage {stage} {self.args.dataBaseConfig.norm_type}')
+        if stage in (None, 'fit'):
             (train_x, val_x), (train_y, val_y) = data_x, data_y
             if self.args.dataBaseConfig.norm_type:
                 norm_func = get_norm_func(self.args.dataBaseConfig.norm_type)
@@ -97,7 +106,7 @@ class LightningBaseDataModule(LightningDataModule):
 
             return (train_x, val_x), (train_y, val_y)
 
-        if stage in (None, "test", "predict"):
+        if stage in (None, 'test', 'predict'):
             (test_x), (test_y) = data_x, data_y
             if self.args.dataBaseConfig.norm_type:
                 test_x = self.norm_func.transform(test_x)
@@ -105,13 +114,13 @@ class LightningBaseDataModule(LightningDataModule):
             return (test_x), (test_y)
 
     def on_data_augmentation(self, train_x, train_y):
-        if self.args.dataBaseConfig.data_aug == "SMOTE":
+        if self.args.dataBaseConfig.data_aug == 'SMOTE':
             from ml_toolkit.data_augmentation import DataAug_SMOTE
 
             smote = DataAug_SMOTE(random_state=self.args.systemOption.seed)
             train_x, train_y = smote.resample(train_x, train_y)
             return train_x, train_y
-        elif self.args.dataBaseConfig.data_aug == "RANDOM":
+        elif self.args.dataBaseConfig.data_aug == 'RANDOM':
             from ml_toolkit.data_augmentation import DataAug_RANDOM
 
             rand_aug = DataAug_RANDOM(random_state=self.args.systemOption.seed)
@@ -120,9 +129,9 @@ class LightningBaseDataModule(LightningDataModule):
         return train_x, train_y
 
     def setup(self, stage=None) -> None:
-        if stage in (None, "fit"):
+        if stage in (None, 'fit'):
             (trn_x, val_x), (trn_y, val_y) = self.on_setup_normlize(
-                (self.train_x, self.val_x), (self.train_y, self.val_y), stage
+                (self.train_x, self.val_x), (self.train_y, self.val_y), stage,
             )
             find_class(trn_y)
             find_class(val_y)
@@ -134,11 +143,15 @@ class LightningBaseDataModule(LightningDataModule):
             else:
                 self.val_set = tensor_dataset(val_x, val_y)
 
-        if stage in (None, "test", "predict"):
-            (test_x), (test_y) = self.on_setup_normlize((self.test_x), (self.test_y), stage)
+        if stage in (None, 'test', 'predict'):
+            (test_x), (test_y) = self.on_setup_normlize(
+                (self.test_x), (self.test_y), stage,
+            )
             self.test_set = tensor_dataset(test_x, test_y)
 
-    def _to_dataloader(self, dataset, shuffle, batch_size, num_workers, drop_last, sampler=None):
+    def _to_dataloader(
+        self, dataset, shuffle, batch_size, num_workers, drop_last, sampler=None,
+    ):
         if sampler:
             shuffle = False
 
@@ -157,15 +170,27 @@ class LightningBaseDataModule(LightningDataModule):
 
     def train_dataloader(self) -> DataLoader:
         return self._to_dataloader(
-            self.train_set, True, self.args.modelBaseConfig.batch_size, num_workers=2, drop_last=False
+            self.train_set,
+            True,
+            self.args.modelBaseConfig.batch_size,
+            num_workers=2,
+            drop_last=False,
         )
 
     def val_dataloader(self) -> DataLoader:
         return self._to_dataloader(
-            self.val_set, False, self.args.modelBaseConfig.val_batch_size, num_workers=2, drop_last=False
+            self.val_set,
+            False,
+            self.args.modelBaseConfig.val_batch_size,
+            num_workers=2,
+            drop_last=False,
         )
 
     def test_dataloader(self) -> DataLoader:
         return self._to_dataloader(
-            self.test_set, False, self.args.modelBaseConfig.test_batch_size, num_workers=1, drop_last=False
+            self.test_set,
+            False,
+            self.args.modelBaseConfig.test_batch_size,
+            num_workers=1,
+            drop_last=False,
         )

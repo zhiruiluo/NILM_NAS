@@ -20,13 +20,13 @@ class MultilabelResultDao:
     def save_result(self, result: ExpResults, args: MyProgramArgs) -> None:
         pass
 
-    def get_result(self, model, dataset) -> List[object]:
+    def get_result(self, model, dataset) -> list[object]:
         pass
 
-    def get_all_results(self) -> List[object]:
+    def get_all_results(self) -> list[object]:
         pass
 
-    def get_best_entry_by_metrics(self, metrics: str | List[str]):
+    def get_best_entry_by_metrics(self, metrics: str | list[str]):
         pass
 
 
@@ -54,8 +54,8 @@ class MultilabelResultSqliteDao(MultilabelResultDao):
             nas_params=result.nas_params,
         )
         logger.info(
-            f"[ResultSqlitDao] save results to {self.sqlite_engine.db_path}")
-        logger.info(f"[ResultSqlitDao]  *********\n {result_} \n *********")
+            f'[ResultSqlitDao] save results to {self.sqlite_engine.db_path}')
+        logger.info(f'[ResultSqlitDao]  *********\n {result_} \n *********')
         self.sqlite_engine.insert(result_)
 
     # def get_best_config(self, model, dataset):
@@ -70,18 +70,16 @@ class MultilabelResultSqliteDao(MultilabelResultDao):
         logger.info(objs)
         return objs
 
-    def get_all_results(self) -> List:
+    def get_all_results(self) -> list:
         results = MultilabelResults()
         statm = self.sqlite_engine.get_statement_exact_match(results)
         objs = self.sqlite_engine.get_all(statm)
         return objs
 
-    def get_best_entry_by_metrics(self, metrics: List[str] | str):
+    def get_best_entry_by_metrics(self, metrics: list[str] | str):
         logger.info(metrics)
         if isinstance(metrics, list):
-            statm = [
-                MultilabelResults.id
-            ]
+            statm = [MultilabelResults.id]
             for m in metrics:
                 statm.append(func.max(getattr(MultilabelResults, m)))
             q = self.sqlite_engine.query(*statm)
@@ -92,7 +90,8 @@ class MultilabelResultSqliteDao(MultilabelResultDao):
             ]
             q = self.sqlite_engine.query(*statm)
         statm = MultilabelResults.__table__.select().where(
-            MultilabelResults.__table__.columns.id == q[0].id)
+            MultilabelResults.__table__.columns.id == q[0].id,
+        )
         q = self.sqlite_engine.get_all(statm)
         return q
 
@@ -102,5 +101,5 @@ class ResultDaoFactory:
         self._engine = engine
 
     def get_dao(self):
-        if self._engine.engine_name() == "SQLite":
+        if self._engine.engine_name() == 'SQLite':
             return MultilabelResultSqliteDao(self._engine)

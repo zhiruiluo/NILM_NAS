@@ -1,8 +1,13 @@
 from __future__ import annotations
+
 import dataclasses
-from simple_parsing import Serializable
 from typing import List
-from .utils import IntegerConvertor, PowerConvertor, LambdaConvertor
+
+from simple_parsing import Serializable
+
+from .utils import IntegerConvertor
+from .utils import LambdaConvertor
+from .utils import PowerConvertor
 
 
 @dataclasses.dataclass
@@ -35,8 +40,8 @@ class ModelConfig_EasyNet(LightningModel):
     nclass: int = 1
     num_stages: int = 1
     in_channels: int = 1
-    num_blocks: List[int] = dataclasses.field(default_factory=lambda: [3])
-    block_width: List[int] = dataclasses.field(default_factory=lambda: [128])
+    num_blocks: list[int] = dataclasses.field(default_factory=lambda: [3])
+    block_width: list[int] = dataclasses.field(default_factory=lambda: [128])
     bottleneck_ratio: float = 1.0
     group_width: int = 2
     stride: int = 2
@@ -73,7 +78,7 @@ class ModelConfig_BasicV2(LightningModel):
     dropout: float = 0.5
     in_channels: int = 1
     nclass: int = 2
-    
+
 
 @dataclasses.dataclass
 class ModelConfig_BasicV3_Pool(LightningModel):
@@ -107,12 +112,12 @@ class ModelConfig_TSNet(LightningModel):
     in_channels: int = 1
     out_channels: int = 32
     dropout: float = 0.5
-    
+
 
 @dataclasses.dataclass
 class ModelConfig_RF(SklearnModel, Serializable):
     n_estimators: int = 100
-    criterion: str = "gini"
+    criterion: str = 'gini'
     max_depth: int | None = None
     min_samples_split: int = 2
     min_samples_leaf: int = 1

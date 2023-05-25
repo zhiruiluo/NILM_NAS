@@ -1,10 +1,20 @@
+from __future__ import annotations
+
+from abc import ABC
+from abc import abstractmethod
+from collections import OrderedDict
+from copy import copy
+from typing import Callable
+from typing import List
+from typing import Optional
+from typing import TypeAlias
+from typing import TypeVar
+
 import torch
 import torch.nn as nn
-from copy import copy
-from abc import ABC, abstractmethod
-from collections import OrderedDict
-from typing import Callable, TypeVar, TypeAlias, Optional, List
+
 from .operations import Identity
+
 
 class Decoder(ABC):
     """
@@ -22,6 +32,7 @@ class Decoder(ABC):
     def get_model(self):
         raise NotImplementedError()
 
+
 def phase_active(gene):
     """
     Determine if a phase is active.
@@ -37,7 +48,9 @@ class ChannelBasedDecoder(Decoder):
     Channel based decoder that deals with encapsulating constructor logic.
     """
 
-    def __init__(self, list_genome: List, channels: List, repeats: Optional[List]=None):
+    def __init__(
+        self, list_genome: list, channels: list, repeats: list | None = None,
+    ):
         """
         Constructor.
         :param list_genome: list, genome describing the connections in a network.
@@ -50,7 +63,7 @@ class ChannelBasedDecoder(Decoder):
 
         # First, we remove all inactive phases.
         self._genome = self.get_effective_genome(list_genome)
-        self._channels = channels[:len(self._genome)]
+        self._channels = channels[: len(self._genome)]
 
         # Use the provided repeats list, or a list of all ones (only repeat each phase once).
         if repeats is not None:
@@ -85,10 +98,14 @@ class ChannelBasedDecoder(Decoder):
             for j in range(repeat):
                 if j == 0:
                     # This is the first instance of this repeat, we need to use the (in, out) channel convention.
-                    repeated_channels.append((self._channels[i][0], self._channels[i][1]))
+                    repeated_channels.append(
+                        (self._channels[i][0], self._channels[i][1]),
+                    )
                 else:
                     # This is not the first instance, use the (out, out) convention.
-                    repeated_channels.append((self._channels[i][1], self._channels[i][1]))
+                    repeated_channels.append(
+                        (self._channels[i][1], self._channels[i][1]),
+                    )
 
                 repeated_genome.append(self._genome[i])
 
@@ -106,7 +123,9 @@ class ChannelBasedDecoder(Decoder):
         for phase, repeat in zip(phases, self._repeats):
             for _ in range(repeat):
                 layers.append(phase)
-            layers.append(nn.MaxPool2d(kernel_size=2, stride=2))  # TODO: Generalize this, or consider a new genome.
+            layers.append(
+                nn.MaxPool2d(kernel_size=2, stride=2),
+            )  # TODO: Generalize this, or consider a new genome.
 
         layers.append(last_phase)
         return layers
@@ -118,20 +137,25 @@ class ChannelBasedDecoder(Decoder):
         :param genome: list, represents the genome
         :return: list
         """
-        return [[pos_gene, op_gene] for pos_gene, op_gene in genome if phase_active(pos_gene)]
+        return [
+            [pos_gene, op_gene]
+            for pos_gene, op_gene in genome
+            if phase_active(pos_gene)
+        ]
 
     @abstractmethod
     def get_model(self):
         raise NotImplementedError()
-    
 
-def get_node_constructor(genotype) -> Callable[[int,int,bool], nn.Module]:
+
+def get_node_constructor(genotype) -> Callable[[int, int, bool], nn.Module]:
     from .genotypes import OPS_Encoding
     from .operations import OPS
+
     op_lambda = OPS[OPS_Encoding[genotype]]
     return op_lambda
-    
-    
+
+
 class ConnAndOpsPhase(nn.Module):
     """
     Residual Genome phase.
@@ -149,15 +173,28 @@ class ConnAndOpsPhase(nn.Module):
         super().__init__()
 
         pos_gene, node_gene = gene
-        self.channel_flag = in_channels != out_channels  # Flag to tell us if we need to increase channel size.
-        self.first_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1 if idx != 0 else 3, stride=1, padding=0 if idx!=0 else 1, bias=False)
-        self.dependency_graph = ConnAndOpsPhase.build_dependency_graph(pos_gene)
+        self.channel_flag = (
+            in_channels != out_channels
+        )  # Flag to tell us if we need to increase channel size.
+        self.first_conv = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=1 if idx != 0 else 3,
+            stride=1,
+            padding=0 if idx != 0 else 1,
+            bias=False,
+        )
+        self.dependency_graph = ConnAndOpsPhase.build_dependency_graph(
+            pos_gene)
 
         nodes: list[nn.Module] = []
         for i in range(len(pos_gene)):
             if len(self.dependency_graph[i + 1]) > 0:
-                node_constructor = get_node_constructor(''.join(str(x) for x in node_gene[i]))
-                node_module = node_constructor(out_channels, stride=1, affine=True)
+                node_constructor = get_node_constructor(
+                    ''.join(str(x) for x in node_gene[i]),
+                )
+                node_module = node_constructor(
+                    out_channels, stride=1, affine=True)
                 nodes.append(node_module)
             else:
                 nodes.append(None)  # Module list will ignore NoneType.
@@ -168,17 +205,21 @@ class ConnAndOpsPhase(nn.Module):
         # At this point, we know which nodes will be receiving input from where.
         # So, we build the 1x1 convolutions that will deal with the depth-wise concatenations.
         #
-        conv1x1s = [Identity()] + [Identity() for _ in range(max(self.dependency_graph.keys()))]
+        conv1x1s = [Identity()] + [
+            Identity() for _ in range(max(self.dependency_graph.keys()))
+        ]
         for node_idx, dependencies in self.dependency_graph.items():
             if len(dependencies) > 1:
-                conv1x1s[node_idx] = \
-                    nn.Conv2d(len(dependencies) * out_channels, out_channels, kernel_size=1, bias=False)
+                conv1x1s[node_idx] = nn.Conv2d(
+                    len(dependencies) * out_channels,
+                    out_channels,
+                    kernel_size=1,
+                    bias=False,
+                )
 
         self.processors = nn.ModuleList(conv1x1s)
-        self.out = nn.Sequential(
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
-        )
+        self.out = nn.Sequential(nn.BatchNorm2d(
+            out_channels), nn.ReLU(inplace=True))
 
     @staticmethod
     def build_dependency_graph(gene):
@@ -196,7 +237,8 @@ class ConnAndOpsPhase(nn.Module):
         # First pass, build the graph without repairs.
         graph[1] = []
         for i in range(len(gene) - 1):
-            graph[i + 2] = [j + 1 for j in range(len(gene[i])) if gene[i][j] == 1]
+            graph[i + 2] = [j +
+                            1 for j in range(len(gene[i])) if gene[i][j] == 1]
 
         graph[len(gene) + 1] = [0] if residual else []
 
@@ -239,7 +281,8 @@ class ConnAndOpsPhase(nn.Module):
                 outputs.append(None)
 
             else:
-                outputs.append(self.nodes[i - 1](self.process_dependencies(i, outputs)))
+                outputs.append(
+                    self.nodes[i - 1](self.process_dependencies(i, outputs)))
 
         return self.out(self.process_dependencies(len(self.nodes) + 1, outputs))
 
@@ -250,30 +293,38 @@ class ConnAndOpsPhase(nn.Module):
         :param outputs: list, current outputs
         :return: Variable
         """
-        return self.processors[node_idx](torch.cat([outputs[i] for i in self.dependency_graph[node_idx]], dim=1))
-
-
+        return self.processors[node_idx](
+            torch.cat([outputs[i]
+                      for i in self.dependency_graph[node_idx]], dim=1),
+        )
 
 
 class ConnAndOpsDecoder(ChannelBasedDecoder):
     def __init__(self, list_genome: list, channels: list, repeats=None):
         super().__init__(list_genome, channels, repeats)
-        
+
         if self._model is not None:
             return
-        
+
         phases = []
-        for idx, (gene, (in_channels, out_channels)) in enumerate(zip(self._genome, self._channels)):
-            phases.append(ConnAndOpsPhase(gene, in_channels, out_channels, idx))
+        for idx, (gene, (in_channels, out_channels)) in enumerate(
+            zip(self._genome, self._channels),
+        ):
+            phases.append(ConnAndOpsPhase(
+                gene, in_channels, out_channels, idx))
 
         self._model = nn.Sequential(*self.build_layers(phases))
-    
+
     def get_model(self):
         return self._model
-        
-    
+
+
 def test_decoder():
-    genome = [[[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]], [[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]]]
-    model = ConnAndOpsDecoder(genome, [(3, 128), (128, 128), (128, 128)]).get_model()
+    genome = [
+        [[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]],
+        [[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]],
+    ]
+    model = ConnAndOpsDecoder(
+        genome, [(3, 128), (128, 128), (128, 128)]).get_model()
     print(model)
-    print(model(torch.randn(1,3,32,32)).shape)
+    print(model(torch.randn(1, 3, 32, 32)).shape)

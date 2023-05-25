@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 from dataclasses import dataclass
 
@@ -37,8 +39,8 @@ class NNSklearnBaseConfig:
 
 @dataclass
 class DataBaseConfig:
-    data_aug: str = "RANDOM"
-    norm_type: str = "minmax"
+    data_aug: str = 'RANDOM'
+    norm_type: str = 'minmax'
 
 
 @dataclass
@@ -55,12 +57,12 @@ class HyperParm:
 @dataclass
 class TrainerOption:
     no_cuda: bool = False
-    accelerator: str = "gpu"
+    accelerator: str = 'gpu'
     devices: int = 1
     precision: int = 32
     auto_bs: bool = False
-    profiler: str = ""
-    strategy: str = ""
+    profiler: str = ''
+    strategy: str = ''
     fast_dev_run: bool = False
     limit_train_batches: float = -1
     limit_val_batches: float = -1

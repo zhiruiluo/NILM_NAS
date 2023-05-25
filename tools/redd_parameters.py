@@ -1,3 +1,4 @@
+from __future__ import annotations
 params_appliance = {
     'microwave': {
         'windowlength': 599,
@@ -9,7 +10,7 @@ params_appliance = {
         'houses': [1, 2, 3],
         'channels': [11, 6, 16],
         'train_build': [2, 3],
-        'test_build': 1
+        'test_build': 1,
     },
     'fridge': {
         'windowlength': 599,
@@ -21,7 +22,7 @@ params_appliance = {
         'houses': [1, 2, 3],
         'channels': [5, 9, 7],
         'train_build': [2, 3],
-        'test_build': 1
+        'test_build': 1,
     },
     'dishwasher': {
         'windowlength': 599,
@@ -33,7 +34,7 @@ params_appliance = {
         'houses': [1, 2, 3],
         'channels': [6, 10, 9],
         'train_build': [2, 3],
-        'test_build': 1
+        'test_build': 1,
     },
     'washingmachine': {
         'windowlength': 599,
@@ -45,6 +46,6 @@ params_appliance = {
         'houses': [1, 2, 3],
         'channels': [20, 7, 13],
         'train_build': [2, 3],
-        'test_build': 1
-    }
+        'test_build': 1,
+    },
 }

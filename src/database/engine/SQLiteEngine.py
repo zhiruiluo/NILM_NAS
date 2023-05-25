@@ -1,12 +1,18 @@
+from __future__ import annotations
+
 import logging
 import os
 
 import sqlalchemy
-from sqlalchemy import and_, create_engine, select
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import and_
+from sqlalchemy import create_engine
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from sqlalchemy.orm import sessionmaker
 
 from src.database.engine.BaseDatabaseEngine import BaseDatabaseEngine
-from src.database.SQLiteMapper import Results, mapper_registry
+from src.database.SQLiteMapper import mapper_registry
+from src.database.SQLiteMapper import Results
 
 logger = logging.getLogger(__name__)
 
@@ -17,14 +23,17 @@ def lockretry(func):
         max_retry = 3
         while retry_times <= max_retry:
             if retry_times != 0:
-                logger.info(f"[LockRetry] retry {func.__name__} {retry_times} times!")
-                print(f"[LockRetry] retry {func.__name__} {retry_times} times!")
+                logger.info(
+                    f'[LockRetry] retry {func.__name__} {retry_times} times!')
+                print(
+                    f'[LockRetry] retry {func.__name__} {retry_times} times!')
             try:
                 ret = func(*args, **kwargs)
             except sqlalchemy.exc.OperationalError as e:
-                logger.info(f"[LockRetry] {e} retry {func.__name__}!")
-                print(f"error message {e}")
-                print(f"[LockRetry] retry {func.__name__} {retry_times} times!")
+                logger.info(f'[LockRetry] {e} retry {func.__name__}!')
+                print(f'error message {e}')
+                print(
+                    f'[LockRetry] retry {func.__name__} {retry_times} times!')
                 retry_times += 1
             else:
                 break
@@ -36,40 +45,40 @@ def lockretry(func):
 
 
 class SQLiteEngine(BaseDatabaseEngine):
-    def __init__(self, db_name: str, db_dir: str =__file__, create_db: str = True):
+    def __init__(self, db_name: str, db_dir: str = __file__, create_db: str = True):
         super().__init__(db_name, db_dir)
         self.timeout = 15
-        logger.info(f"[SQLiteEngine] db_file path {self.db_path}")
+        logger.info(f'[SQLiteEngine] db_file path {self.db_path}')
         if create_db:
             self._create_tables()
         else:
             if not os.path.isfile(self.db_path):
-                raise FileNotFoundError(f"DB not found at path {self.db_path}")
+                raise FileNotFoundError(f'DB not found at path {self.db_path}')
 
     def engine_name(self):
-        return "SQLite"
+        return 'SQLite'
 
     @property
     def engine(self):
-        if not hasattr(self, "_engine"):
+        if not hasattr(self, '_engine'):
             self._engine = create_engine(
-                f"sqlite+pysqlite:///{self.db_path}",
+                f'sqlite+pysqlite:///{self.db_path}',
                 echo=False,
                 future=True,
-                connect_args={"timeout": self.timeout},
+                connect_args={'timeout': self.timeout},
             )
         return self._engine
 
     @property
     def session(self) -> Session:
-        if not hasattr(self, "_session"):
+        if not hasattr(self, '_session'):
             Session = sessionmaker(bind=self.engine, autoflush=False)
             self._session = Session
         return self._session
 
     def query(self, *args, **kwargs):
         with self.session.begin() as session:
-            q = session.query(*args, **kwargs) 
+            q = session.query(*args, **kwargs)
         return q
 
     @lockretry
@@ -80,7 +89,9 @@ class SQLiteEngine(BaseDatabaseEngine):
     def get_statement_exact_match(self, model: Results):
         clauses = []
         conditions = [
-            k for k, v in vars(model).items() if k != "_sa_instance_state" and v is not None
+            k
+            for k, v in vars(model).items()
+            if k != '_sa_instance_state' and v is not None
         ]
         for k in conditions:
             clause = getattr(model.__table__.columns, k) == getattr(model, k)
@@ -102,4 +113,5 @@ class SQLiteEngine(BaseDatabaseEngine):
     def _create_tables(self):
         if not os.path.isfile(self.db_path):
             mapper_registry.metadata.create_all(self.engine)
-            logger.info(f"[SQLite Engine] initializing database {self.db_path}")
+            logger.info(
+                f'[SQLite Engine] initializing database {self.db_path}')

@@ -1,14 +1,17 @@
 from __future__ import annotations
+
+import logging
 from typing import List
+
+from .engine.EngineFactory import EngineFactory
+from .ResultsDao import ResultDao
+from .ResultsDao import ResultDaoFactory
 from src.base_module.configs import ExpResults
 from src.config_options.option_def import MyProgramArgs
 
-from .engine.EngineFactory import EngineFactory
-from .ResultsDao import ResultDao, ResultDaoFactory
-import logging
-
 
 logger = logging.getLogger(__name__)
+
 
 class Persistence:
     def __init__(self, result_dao: ResultDao):
@@ -27,13 +30,13 @@ class Persistence:
     #     exp_results = ExpResults(train_metrics, val_metrics, test_metrics)
     #     self.result_dao.save_result(exp_results, self.args)
 
-    def get_best_entry(self, metrics: str | List[str] = 'val_acc') -> List:
+    def get_best_entry(self, metrics: str | list[str] = 'val_acc') -> list:
         results = self.result_dao.get_best_entry_by_metrics(metrics)
         for r in results:
             logger.info(r)
         return results
 
-    def get_all_results(self) -> List:
+    def get_all_results(self) -> list:
         results = self.result_dao.get_all_results()
         return results
 
@@ -44,8 +47,6 @@ class Persistence:
         pass
 
 
-
-
 class PersistenceFactory:
     def __init__(self, db_name: str, db_dir: str, create_db: bool = True) -> None:
         self.db_name = db_name
@@ -54,7 +55,7 @@ class PersistenceFactory:
 
     def get_persistence(self) -> Persistence:
         databaseEngine = EngineFactory().get_sqlite_engine(
-            self.db_name, self.db_dir, self.create_db
+            self.db_name, self.db_dir, self.create_db,
         )
         rdao = ResultDaoFactory(databaseEngine).get_dao()
         return Persistence(rdao)

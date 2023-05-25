@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import dataclasses
+
 from simple_parsing import Serializable
 
 
@@ -7,11 +10,13 @@ class ModelBaseConfig(Serializable):
     batch_size: int = 32
     val_batch_size: int = 128
     test_batch_size: int = 128
-    
+
+
 @dataclasses.dataclass
 class SklearnBaseConfig(ModelBaseConfig):
     # batch_size: int = 64
     label_mode: str = 'multilabel'
+
 
 @dataclasses.dataclass
 class HyperParm(ModelBaseConfig):
@@ -24,6 +29,7 @@ class HyperParm(ModelBaseConfig):
     # val_batch_size: int = 128
     # test_batch_size: int = 128
     label_mode: str = 'multilabel'
+
 
 @dataclasses.dataclass
 class NNSklearnBaseConfig(HyperParm):

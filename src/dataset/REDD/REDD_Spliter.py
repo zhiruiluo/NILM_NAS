@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 
 import numpy as np
@@ -15,14 +17,16 @@ class REDDSpliter(IndexSpliter):
         splits: str,
         nrepeat: int,
         index_buffer_flag: bool = True,
-        index_buffer_path: str = "./spliting/",
+        index_buffer_path: str = './spliting/',
         seed: int = 42,
     ) -> None:
-        super().__init__(key_name, labels, splits, nrepeat, index_buffer_flag, index_buffer_path)
+        super().__init__(
+            key_name, labels, splits, nrepeat, index_buffer_flag, index_buffer_path,
+        )
         self.seed = seed
 
     def _splits_(self, labels):
-        if self.splits == "3:1:1":
+        if self.splits == '3:1:1':
             train_index, test_index = train_test_split(
                 np.arange(len(labels)),
                 train_size=0.8,
@@ -54,5 +58,5 @@ class REDDSpliter(IndexSpliter):
                 shuffle=True,
                 random_state=self.seed,
             )
-            
+
         return train_index, val_index, test_index

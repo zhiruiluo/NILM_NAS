@@ -1,7 +1,5 @@
-from .TraningManager import (
-    TrainingManager
-)
+from __future__ import annotations
 
-__all__ = [
-    'TrainingManager'
-]
+from .TraningManager import TrainingManager
+
+__all__ = ['TrainingManager']
