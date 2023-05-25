@@ -5,12 +5,12 @@ import torch
 import torch.nn as nn
 from torch.nn.utils import spectral_norm
 
-from .bitstring_decoder import convert
-from .bitstring_decoder import decode_genome
-from .decoder import ConnAndOpsDecoder
 from src.base_module.base_lightning import LightningBaseModule
 from src.config_options.model_configs import ModelConfig_TSNet
 from src.config_options.option_def import MyProgramArgs
+
+from .bitstring_decoder import convert, decode_genome
+from .decoder import ConnAndOpsDecoder
 
 
 class TSNet(LightningBaseModule):
@@ -19,8 +19,7 @@ class TSNet(LightningBaseModule):
         config: ModelConfig_TSNet = args.modelConfig
 
         list_genome = decode_genome(
-            convert(np.array([int(x)
-                    for x in config.bit_string]), config.n_phases),
+            convert(np.array([int(x) for x in config.bit_string]), config.n_phases),
         )
         chan = []
         for i in range(config.n_phases):
@@ -37,7 +36,7 @@ class TSNet(LightningBaseModule):
         )
 
     def forward(self, batch):
-        x = batch['input']
+        x = batch["input"]
         x = self.backbone(x)
         print(x.shape)
         x = self.pool(x)
@@ -51,10 +50,10 @@ def test_models():
     opt = OptionManager()
     args = opt.replace_params(
         {
-            'expOptions.model': 'TSNet',
-            'modelConfig': 'TSNet',
+            "expOptions.model": "TSNet",
+            "modelConfig": "TSNet",
         },
     )
     model = TSNet(args)
-    batch = {'input': torch.randn(1, 1, 12, 256)}
+    batch = {"input": torch.randn(1, 1, 12, 256)}
     print(model(batch).shape)

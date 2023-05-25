@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 __all__ = [
-    'get_project_root',
-    'get_relative_path_to_project_root',
+    "get_project_root",
+    "get_relative_path_to_project_root",
 ]
 
 

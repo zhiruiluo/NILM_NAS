@@ -1,31 +1,30 @@
 from __future__ import annotations
+
+import copy
+import dataclasses
+import json
+import logging
+import os
+import sys
+import time
+from pathlib import Path
+
+import simple_parsing
+from simple_parsing.annotation_utils.get_field_annotations import (
+    get_field_type_from_annotations,
+)
 from simple_parsing.utils import (
     DataclassT,
-    PossiblyNestedDict,
-    V,
     contains_dataclass_type_arg,
     is_dataclass_instance,
     is_dataclass_type,
     is_optional,
     unflatten_split,
 )
-from simple_parsing.annotation_utils.get_field_annotations import (
-    get_field_type_from_annotations,
-)
-from .option_def import MyProgramArgs, ModelbaseGroups, ModelGroups, DatasetGroups
-import simple_parsing
-from typing import Dict, Optional
-import json
-from pathlib import Path
-import time
-import os
-import logging
-import dataclasses
-import copy
 
-import sys
+from .option_def import DatasetGroups, ModelbaseGroups, ModelGroups, MyProgramArgs
 
-sys.path.append('.')
+sys.path.append(".")
 
 
 logger = logging.getLogger(__name__)
@@ -40,7 +39,10 @@ def select_field(_dataclass, field_name) -> dataclasses.Field:
 
 
 def unflatten_selection_dict(
-    flattened: dict, keyword: str = '__key__', sep: str = '.', recursive: bool = False,
+    flattened: dict,
+    keyword: str = "__key__",
+    sep: str = ".",
+    recursive: bool = False,
 ) -> dict:
     """
     This function convert a flattened dict into a nested dict
@@ -78,7 +80,7 @@ def unflatten_selection_dict(
             if len(rest_keys) == 0:
                 sub_dc[keyword] = v
             else:
-                sub_dc['.'.join(rest_keys)] = v
+                sub_dc[".".join(rest_keys)] = v
             dc[top_level_key] = sub_dc
         else:
             dc[k] = v
@@ -98,7 +100,7 @@ def replace_subgroups(obj: DataclassT, selections: dict | None = None) -> Datacl
 
     The values of selections can be `Key` of subgroups, dataclass type, and dataclass instance.
     """
-    keyword = '__key__'
+    keyword = "__key__"
 
     if not selections:
         return obj
@@ -107,21 +109,19 @@ def replace_subgroups(obj: DataclassT, selections: dict | None = None) -> Datacl
     replace_kwargs = {}
     for field in dataclasses.fields(obj):
         if not field.init:
-            raise ValueError(
-                f'Cannot replace value of non-init field {field.name}.')
+            raise ValueError(f"Cannot replace value of non-init field {field.name}.")
 
         if field.name not in selections:
             continue
 
         field_value = getattr(obj, field.name)
-        field_annotation = get_field_type_from_annotations(
-            obj.__class__, field.name)
+        field_annotation = get_field_type_from_annotations(obj.__class__, field.name)
 
         new_value = None
         # Replace subgroup is allowed when the type annotation contains dataclass
         if not contains_dataclass_type_arg(field_annotation):
             raise ValueError(
-                f'The replaced subgroups contains no dataclass in its annotation {field_annotation}',
+                f"The replaced subgroups contains no dataclass in its annotation {field_annotation}",
             )
 
         selection = selections.pop(field.name)
@@ -136,21 +136,18 @@ def replace_subgroups(obj: DataclassT, selections: dict | None = None) -> Datacl
             field_value = value_of_selection()
         elif is_dataclass_instance(value_of_selection):
             field_value = copy.deepcopy(value_of_selection)
-        elif field.metadata.get('subgroups', None):
+        elif field.metadata.get("subgroups", None):
             assert isinstance(value_of_selection, str)
-            subgroup_selection = field.metadata['subgroups'][value_of_selection]
+            subgroup_selection = field.metadata["subgroups"][value_of_selection]
             if is_dataclass_instance(subgroup_selection):
                 # when the subgroup selection is a frozen dataclass instance
                 field_value = subgroup_selection
             else:
                 # when the subgroup selection is a dataclass type
-                field_value = field.metadata['subgroups'][value_of_selection]()
+                field_value = field.metadata["subgroups"][value_of_selection]()
         elif is_optional(field_annotation) and value_of_selection is None:
             field_value = None
-        elif (
-            contains_dataclass_type_arg(
-                field_annotation) and value_of_selection is None
-        ):
+        elif contains_dataclass_type_arg(field_annotation) and value_of_selection is None:
             field_value = field.default_factory()
         else:
             raise ValueError(
@@ -167,10 +164,12 @@ def replace_subgroups(obj: DataclassT, selections: dict | None = None) -> Datacl
 
 
 def replace(
-    obj: DataclassT, changes_dict: dict | None = None, **changes,
+    obj: DataclassT,
+    changes_dict: dict | None = None,
+    **changes,
 ) -> DataclassT:
     if changes_dict and changes:
-        raise ValueError('Cannot pass both `changes_dict` and `changes`')
+        raise ValueError("Cannot pass both `changes_dict` and `changes`")
     changes = changes_dict or changes
     # changes can be given in a 'flat' format in `changes_dict`, e.g. {"a.b.c": 123}.
     # Unflatten them back to a nested dict (e.g. {"a": {"b": {"c": 123}}})
@@ -184,8 +183,7 @@ def replace(
             # if drop_non_init:
             #     print(f'Drop non init {field.name} {changes[field.name]}')
             #     continue
-            raise ValueError(
-                f'Cannot replace value of non-init field {field.name}.')
+            raise ValueError(f"Cannot replace value of non-init field {field.name}.")
 
         field_value = getattr(obj, field.name)
 
@@ -204,32 +202,29 @@ def replace(
 
 
 def replace_consistant(args: MyProgramArgs, config: dict) -> dict:
-    key_dataset = config.pop('__key__@datasetConfig', None)
+    key_dataset = config.pop("__key__@datasetConfig", None)
     if key_dataset:
-        args = replace_subgroups(args, {'datasetConfig': key_dataset})
-        args = replace(args, {'expOption.dataset': key_dataset})
+        args = replace_subgroups(args, {"datasetConfig": key_dataset})
+        args = replace(args, {"expOption.dataset": key_dataset})
     args = replace(args, config)
-    config['args'] = args
+    config["args"] = args
     return config
 
 
 def loads_json(s) -> MyProgramArgs:
     params = json.loads(s)
-    modelConfig = params.pop('modelConfig', None)
-    modelBaseConfig = params.pop('modelBaseConfig', None)
-    datasetConfig = params.pop('datasetConfig', None)
+    modelConfig = params.pop("modelConfig", None)
+    modelBaseConfig = params.pop("modelBaseConfig", None)
+    datasetConfig = params.pop("datasetConfig", None)
     # datasetBaseConfig = params.pop('datasetBaseConfig', None)
     conf = MyProgramArgs.from_dict(params)
-    conf.modelConfig = ModelGroups(
-    ).groups[conf.expOption.model].from_dict(modelConfig)
+    conf.modelConfig = ModelGroups().groups[conf.expOption.model].from_dict(modelConfig)
     conf.modelBaseConfig = (
         ModelbaseGroups()
         .get_modelbase_by_model(conf.modelConfig.__class__)
         .from_dict(modelBaseConfig)
     )
-    conf.datasetConfig = (
-        DatasetGroups().groups[conf.expOption.dataset].from_dict(datasetConfig)
-    )
+    conf.datasetConfig = DatasetGroups().groups[conf.expOption.dataset].from_dict(datasetConfig)
     return conf
 
 
@@ -241,46 +236,48 @@ class OptionManager:
         self._on_pre_build()
 
     def _update_subgroups(self, subgroups):
-        self.subgroups['datasetConfig'] = subgroups['args.datasetConfig']
-        self.subgroups['modelConfig'] = subgroups['args.modelConfig']
-        self.subgroups['modelBaseConfig'] = subgroups['args.modelBaseConfig']
+        self.subgroups["datasetConfig"] = subgroups["args.datasetConfig"]
+        self.subgroups["modelConfig"] = subgroups["args.modelConfig"]
+        self.subgroups["modelBaseConfig"] = subgroups["args.modelBaseConfig"]
 
     def _replace_subgroups(self, changes: dict, ori_subgroup):
         subgroups = {}
-        subgroups['datasetConfig'] = (
-            changes.get('datasetConfig')
-            if changes.get('datasetConfig') is not None
-            else ori_subgroup['datasetConfig']
+        subgroups["datasetConfig"] = (
+            changes.get("datasetConfig")
+            if changes.get("datasetConfig") is not None
+            else ori_subgroup["datasetConfig"]
         )
-        subgroups['modelConfig'] = (
-            changes.get('modelConfig')
-            if changes.get('modelConfig') is not None
-            else ori_subgroup['modelConfig']
+        subgroups["modelConfig"] = (
+            changes.get("modelConfig")
+            if changes.get("modelConfig") is not None
+            else ori_subgroup["modelConfig"]
         )
-        subgroups['modelBaseConfig'] = (
-            changes.get('modelBaseConfig')
-            if changes.get('modelBaseConfig') is not None
-            else ori_subgroup['modelBaseConfig']
+        subgroups["modelBaseConfig"] = (
+            changes.get("modelBaseConfig")
+            if changes.get("modelBaseConfig") is not None
+            else ori_subgroup["modelBaseConfig"]
         )
-        changes.pop('datasetConfig', None)
-        changes.pop('modelConfig', None)
-        changes.pop('modelBaseConfig', None)
+        changes.pop("datasetConfig", None)
+        changes.pop("modelConfig", None)
+        changes.pop("modelBaseConfig", None)
         return subgroups
 
     def _parse_config(self, argv):
         parser = simple_parsing.ArgumentParser()
-        parser.add_argument('--config_path', type=str, default='')
+        parser.add_argument("--config_path", type=str, default="")
         args, opt_seq = parser.parse_known_args(argv)
-        if args.config_path != '':
+        if args.config_path != "":
             args = MyProgramArgs.load_yaml(args.config_path)
-            print(f'[config_path] loading from file\n{args}')
+            print(f"[config_path] loading from file\n{args}")
             return args, opt_seq
-        print('[config_path] not load from file')
+        print("[config_path] not load from file")
         return None, opt_seq
 
     def _parse_default(self, argv, default):
         return simple_parsing.parse_known_args(
-            MyProgramArgs, args=argv, default=default,
+            MyProgramArgs,
+            args=argv,
+            default=default,
         )
 
     def _on_pre_build(self):
@@ -289,19 +286,18 @@ class OptionManager:
             args = default_args
             self._update_subgroups(
                 {
-                    'args.datasetConfig': args.expOption.dataset,
-                    'args.modelConfig': args.expOption.model,
-                    'args.modelBaseConfig': 'lighting',
+                    "args.datasetConfig": args.expOption.dataset,
+                    "args.modelConfig": args.expOption.model,
+                    "args.modelBaseConfig": "lighting",
                 },
             )
         else:
-            args, opt_seq = self._parse_default(
-                self.default_sys_argv, default_args)
+            args, opt_seq = self._parse_default(self.default_sys_argv, default_args)
             self._update_subgroups(
                 {
-                    'args.datasetConfig': args.expOption.dataset,
-                    'args.modelConfig': args.expOption.model,
-                    'args.modelBaseConfig': 'lighting',
+                    "args.datasetConfig": args.expOption.dataset,
+                    "args.modelConfig": args.expOption.model,
+                    "args.modelBaseConfig": "lighting",
                 },
             )
 
@@ -309,19 +305,17 @@ class OptionManager:
 
         self._make_consist_for_subgroups(self.args, self.subgroups)
 
-        jobid = os.environ.get('SLURM_JOB_ID')
+        jobid = os.environ.get("SLURM_JOB_ID")
         if jobid is not None:
-            args.systemOption.job_name = (
-                f'{jobid}_{time.strftime("%m%d_%H%M", time.localtime())}'
-            )
+            args.systemOption.job_name = f'{jobid}_{time.strftime("%m%d_%H%M", time.localtime())}'
         else:
-            args.systemOption.job_name = 'time_{}'.format(
-                time.strftime('%m%d_%H%M', time.localtime()),
+            args.systemOption.job_name = "time_{}".format(
+                time.strftime("%m%d_%H%M", time.localtime()),
             )
 
         args.systemOption.update_dir()
         self.opt_seq = opt_seq
-        logger.info('[parser configs] %s', opt_seq)
+        logger.info("[parser configs] %s", opt_seq)
 
     def replace_params(self, changes: dict) -> MyProgramArgs:
         new_args = copy.deepcopy(self.args)
@@ -332,18 +326,18 @@ class OptionManager:
         return new_args
 
     def _make_consist_for_subgroups(self, args, subgroups):
-        args.expOption.dataset = subgroups['datasetConfig']
-        args.expOption.model = subgroups['modelConfig']
+        args.expOption.dataset = subgroups["datasetConfig"]
+        args.expOption.model = subgroups["modelConfig"]
 
-        dataset_config_cls = select_field(MyProgramArgs, 'datasetConfig').metadata[
-            'subgroups'
-        ][subgroups['datasetConfig']]
+        dataset_config_cls = select_field(MyProgramArgs, "datasetConfig").metadata["subgroups"][
+            subgroups["datasetConfig"]
+        ]
         if not isinstance(args.datasetConfig, dataset_config_cls):
             args.datasetConfig = dataset_config_cls()
 
-        model_config_cls = select_field(MyProgramArgs, 'modelConfig').metadata[
-            'subgroups'
-        ][subgroups['modelConfig']]
+        model_config_cls = select_field(MyProgramArgs, "modelConfig").metadata["subgroups"][
+            subgroups["modelConfig"]
+        ]
         if not isinstance(args.modelConfig, model_config_cls):
             args.modelConfig = model_config_cls()
 
@@ -354,17 +348,19 @@ class OptionManager:
             args.modelBaseConfig = model_base_config_cls()
 
     def _replace_by_dict_known(
-        self, src: MyProgramArgs, changes: dict,
+        self,
+        src: MyProgramArgs,
+        changes: dict,
     ) -> MyProgramArgs:
         d = copy.deepcopy(vars(src))
         for k, v in changes.items():
-            key = k.split('.')
+            key = k.split(".")
             if d.get(key[0], None) is None:
                 continue
             if len(key) == 1:
                 d[key[0]] = v
             elif len(key) == 2:
-                d1 = dataclasses.replace(d[key[0]], **{f'{key[1]}': v})
+                d1 = dataclasses.replace(d[key[0]], **{f"{key[1]}": v})
                 d[key[0]] = d1
         new_d = {}
         for f in dataclasses.fields(MyProgramArgs):
@@ -372,5 +368,4 @@ class OptionManager:
         return MyProgramArgs(**new_d)
 
     def save_yaml(self):
-        self.args.save_yaml(
-            Path(self.args.systemOption.task_dir).joinpath('conf.yaml'))
+        self.args.save_yaml(Path(self.args.systemOption.task_dir).joinpath("conf.yaml"))

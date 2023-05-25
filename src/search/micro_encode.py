@@ -5,39 +5,37 @@ from __future__ import annotations
 from collections import namedtuple
 
 import numpy as np
-import torch
 
 # from models.micro_models import NetworkCIFAR as Network
 
-Genotype = namedtuple('Genotype', 'normal normal_concat reduce reduce_concat')
-Genotype_norm = namedtuple('Genotype', 'normal normal_concat')
-Genotype_redu = namedtuple('Genotype', 'reduce reduce_concat')
+Genotype = namedtuple("Genotype", "normal normal_concat reduce reduce_concat")
+Genotype_norm = namedtuple("Genotype", "normal normal_concat")
+Genotype_redu = namedtuple("Genotype", "reduce reduce_concat")
 
 # what you want to search should be defined here and in micro_operations
 PRIMITIVES = [
-    'max_pool_3x3',
-    'avg_pool_3x3',
-    'skip_connect',
-    'sep_conv_3x3',
-    'sep_conv_5x5',
-    'dil_conv_3x3',
-    'dil_conv_5x5',
-    'sep_conv_7x7',
-    'conv_7x1_1x7',
+    "max_pool_3x3",
+    "avg_pool_3x3",
+    "skip_connect",
+    "sep_conv_3x3",
+    "sep_conv_5x5",
+    "dil_conv_3x3",
+    "dil_conv_5x5",
+    "sep_conv_7x7",
+    "conv_7x1_1x7",
 ]
 
 
 def convert_cell(cell_bit_string):
     # convert cell bit-string to genome
-    tmp = [cell_bit_string[i: i + 2]
-           for i in range(0, len(cell_bit_string), 2)]
-    return [tmp[i: i + 2] for i in range(0, len(tmp), 2)]
+    tmp = [cell_bit_string[i : i + 2] for i in range(0, len(cell_bit_string), 2)]
+    return [tmp[i : i + 2] for i in range(0, len(tmp), 2)]
 
 
 def convert(bit_string):
     # convert network bit-string (norm_cell + redu_cell) to genome
     norm_gene = convert_cell(bit_string[: len(bit_string) // 2])
-    redu_gene = convert_cell(bit_string[len(bit_string) // 2:])
+    redu_gene = convert_cell(bit_string[len(bit_string) // 2 :])
     return [norm_gene, redu_gene]
 
 
@@ -103,7 +101,7 @@ def compare_cell(cell_string1, cell_string2):
 def compare(string1, string2):
 
     if compare_cell(string1[: len(string1) // 2], string2[: len(string2) // 2]):
-        if compare_cell(string1[len(string1) // 2:], string2[len(string2) // 2:]):
+        if compare_cell(string1[len(string1) // 2 :], string2[len(string2) // 2 :]):
             return True
 
     return False
@@ -148,7 +146,7 @@ def debug():
         #     print(design_id)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # debug()
     # genome1 = [[[[3, 0], [3, 1]], [[3, 0], [3, 1]],
     #             [[3, 1], [2, 0]], [[2, 0], [5, 2]]],

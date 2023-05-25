@@ -6,30 +6,28 @@ from typing import Literal
 import numpy as np
 from loguru import logger
 from pymoo.algorithms.moo.nsga2 import NSGA2
-from pymoo.core.problem import DaskParallelization
 from pymoo.core.problem import ElementwiseProblem
 from pymoo.operators.mutation.bitflip import BitflipMutation
 from pymoo.operators.mutation.pm import PolynomialMutation
-from pymoo.operators.sampling.rnd import BinaryRandomSampling
-from pymoo.operators.sampling.rnd import IntegerRandomSampling
+from pymoo.operators.sampling.rnd import BinaryRandomSampling, IntegerRandomSampling
 from pymoo.optimize import minimize
 
 
-def nsga2_algorithm_factory(pop_size=50, vtype: Literal['int', 'binary'] = 'binary'):
-    if vtype == 'int':
+def nsga2_algorithm_factory(pop_size=50, vtype: Literal["int", "binary"] = "binary"):
+    if vtype == "int":
         algorithm = NSGA2(
             pop_size=pop_size,
             sampling=IntegerRandomSampling(),
             mutation=PolynomialMutation(at_least_once=True, vtype=int),
         )
-    elif vtype == 'binary':
+    elif vtype == "binary":
         algorithm = NSGA2(
             pop_size=pop_size,
             sampling=BinaryRandomSampling(),
             mutation=BitflipMutation(),
         )
     else:
-        raise ValueError('vtype is not valid')
+        raise ValueError("vtype is not valid")
 
     return algorithm
 
@@ -38,14 +36,14 @@ def do_every_generations(algorithm):
     # this function will be call every generation
     # it has access to the whole algorithm class
     gen = algorithm.n_gen
-    pop_var = algorithm.pop.get('X')
-    pop_obj = algorithm.pop.get('F')
+    pop_var = algorithm.pop.get("X")
+    pop_obj = algorithm.pop.get("F")
 
     # report generation info to files
-    logger.info(f'generation = {gen}')
+    logger.info(f"generation = {gen}")
     logger.info(
-        'population error: best = {}, mean = {}, '
-        'median = {}, worst = {}'.format(
+        "population error: best = {}, mean = {}, "
+        "median = {}, worst = {}".format(
             np.min(pop_obj[:, 0]),
             np.mean(pop_obj[:, 0]),
             np.median(pop_obj[:, 0]),
@@ -53,8 +51,8 @@ def do_every_generations(algorithm):
         ),
     )
     logger.info(
-        'population complexity: best = {}, mean = {}, '
-        'median = {}, worst = {}'.format(
+        "population complexity: best = {}, mean = {}, "
+        "median = {}, worst = {}".format(
             np.min(pop_obj[:, 1]),
             np.mean(pop_obj[:, 1]),
             np.median(pop_obj[:, 1]),
@@ -69,7 +67,14 @@ def get_unique_task_id(gene: np.ndarray) -> str:
 
 class NASProblem(ElementwiseProblem):
     def __init__(
-        self, n_var=20, n_obj=1, n_constr=0, lb=None, ub=None, vtype=int, **kwargs,
+        self,
+        n_var=20,
+        n_obj=1,
+        n_constr=0,
+        lb=None,
+        ub=None,
+        vtype=int,
+        **kwargs,
     ):
         super().__init__(
             n_var=n_var,
@@ -93,22 +98,22 @@ class NASProblem(ElementwiseProblem):
             objs[:, 0] = np.sum(x)
             objs[:, 1] = 100
             self._evaluated_tasks[unique_task_id] = objs
-            print('first_run', objs)
+            print("first_run", objs)
         else:
             objs = self._evaluated_tasks[unique_task_id]
-            print('evaluated objs', objs)
+            print("evaluated objs", objs)
 
-        out['F'] = self._evaluated_tasks[unique_task_id]
+        out["F"] = self._evaluated_tasks[unique_task_id]
 
 
 def test_nasproblem_binary():
-    algorithm = nsga2_algorithm_factory(vtype='binary')
+    algorithm = nsga2_algorithm_factory(vtype="binary")
     n_var = 10
     problem = NASProblem(n_var=n_var, n_obj=2, lb=[0] * n_var, ub=[2] * n_var)
     res = minimize(
         problem,
         algorithm,
-        ('n_gen', 10),
+        ("n_gen", 10),
         seed=1,
         verbose=False,
         save_history=True,
@@ -118,13 +123,13 @@ def test_nasproblem_binary():
 
 
 def test_nasproblem_integer():
-    algorithm = nsga2_algorithm_factory(vtype='int')
+    algorithm = nsga2_algorithm_factory(vtype="int")
     n_var = 10
     problem = NASProblem(n_var=n_var, n_obj=2, lb=[0] * n_var, ub=[10] * n_var)
     res = minimize(
         problem,
         algorithm,
-        ('n_gen', 10),
+        ("n_gen", 10),
         seed=1,
         verbose=False,
         save_history=True,

@@ -15,7 +15,7 @@ class ModelBaseConfig(Serializable):
 @dataclasses.dataclass
 class SklearnBaseConfig(ModelBaseConfig):
     # batch_size: int = 64
-    label_mode: str = 'multilabel'
+    label_mode: str = "multilabel"
 
 
 @dataclasses.dataclass
@@ -28,22 +28,22 @@ class HyperParm(ModelBaseConfig):
     # batch_size: int = 32
     # val_batch_size: int = 128
     # test_batch_size: int = 128
-    label_mode: str = 'multilabel'
+    label_mode: str = "multilabel"
 
 
 @dataclasses.dataclass
 class NNSklearnBaseConfig(HyperParm):
-    norm_type: str = 'minmax'
+    norm_type: str = "minmax"
     # batch_size: int = 64
 
 
 @dataclasses.dataclass
 class NNSklearnGridBaseConfig(HyperParm):
-    norm_type: str = 'minmax'
+    norm_type: str = "minmax"
     # batch_size: int = 64
 
 
 @dataclasses.dataclass
 class EsitmatorBaseConfig(ModelBaseConfig):
     # batch_size: int = 64
-    label_mode: str = 'multilabel'
+    label_mode: str = "multilabel"

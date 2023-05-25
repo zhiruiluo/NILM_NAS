@@ -8,6 +8,9 @@ class EngineFactory:
         pass
 
     def get_sqlite_engine(
-        self, db_name: str, db_dir: str, create_db: bool,
+        self,
+        db_name: str,
+        db_dir: str,
+        create_db: bool,
     ) -> SQLiteEngine:
         return SQLiteEngine(db_name, db_dir, create_db)

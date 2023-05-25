@@ -9,4 +9,4 @@ from .base_lightningdata import LightningBaseDataModule
 # from .configs import *
 # from .config_factory import ConfigFactory
 
-__all__ = ['LightningBaseModule', 'LightningBaseDataModule']
+__all__ = ["LightningBaseModule", "LightningBaseDataModule"]

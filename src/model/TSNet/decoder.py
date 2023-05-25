@@ -1,14 +1,7 @@
 from __future__ import annotations
 
-from abc import ABC
-from abc import abstractmethod
-from collections import OrderedDict
-from copy import copy
+from abc import ABC, abstractmethod
 from typing import Callable
-from typing import List
-from typing import Optional
-from typing import TypeAlias
-from typing import TypeVar
 
 import torch
 import torch.nn as nn
@@ -40,7 +33,7 @@ def phase_active(gene):
     :return: bool, true if active.
     """
     # The residual bit is not relevant in if a phase is active, so we ignore it, i.e. gene[:-1].
-    return sum([sum(t) for t in gene[:-1]]) != 0
+    return sum(sum(t) for t in gene[:-1]) != 0
 
 
 class ChannelBasedDecoder(Decoder):
@@ -49,7 +42,10 @@ class ChannelBasedDecoder(Decoder):
     """
 
     def __init__(
-        self, list_genome: list, channels: list, repeats: list | None = None,
+        self,
+        list_genome: list,
+        channels: list,
+        repeats: list | None = None,
     ):
         """
         Constructor.
@@ -137,11 +133,7 @@ class ChannelBasedDecoder(Decoder):
         :param genome: list, represents the genome
         :return: list
         """
-        return [
-            [pos_gene, op_gene]
-            for pos_gene, op_gene in genome
-            if phase_active(pos_gene)
-        ]
+        return [[pos_gene, op_gene] for pos_gene, op_gene in genome if phase_active(pos_gene)]
 
     @abstractmethod
     def get_model(self):
@@ -184,17 +176,15 @@ class ConnAndOpsPhase(nn.Module):
             padding=0 if idx != 0 else 1,
             bias=False,
         )
-        self.dependency_graph = ConnAndOpsPhase.build_dependency_graph(
-            pos_gene)
+        self.dependency_graph = ConnAndOpsPhase.build_dependency_graph(pos_gene)
 
         nodes: list[nn.Module] = []
         for i in range(len(pos_gene)):
             if len(self.dependency_graph[i + 1]) > 0:
                 node_constructor = get_node_constructor(
-                    ''.join(str(x) for x in node_gene[i]),
+                    "".join(str(x) for x in node_gene[i]),
                 )
-                node_module = node_constructor(
-                    out_channels, stride=1, affine=True)
+                node_module = node_constructor(out_channels, stride=1, affine=True)
                 nodes.append(node_module)
             else:
                 nodes.append(None)  # Module list will ignore NoneType.
@@ -205,9 +195,7 @@ class ConnAndOpsPhase(nn.Module):
         # At this point, we know which nodes will be receiving input from where.
         # So, we build the 1x1 convolutions that will deal with the depth-wise concatenations.
         #
-        conv1x1s = [Identity()] + [
-            Identity() for _ in range(max(self.dependency_graph.keys()))
-        ]
+        conv1x1s = [Identity()] + [Identity() for _ in range(max(self.dependency_graph.keys()))]
         for node_idx, dependencies in self.dependency_graph.items():
             if len(dependencies) > 1:
                 conv1x1s[node_idx] = nn.Conv2d(
@@ -218,8 +206,7 @@ class ConnAndOpsPhase(nn.Module):
                 )
 
         self.processors = nn.ModuleList(conv1x1s)
-        self.out = nn.Sequential(nn.BatchNorm2d(
-            out_channels), nn.ReLU(inplace=True))
+        self.out = nn.Sequential(nn.BatchNorm2d(out_channels), nn.ReLU(inplace=True))
 
     @staticmethod
     def build_dependency_graph(gene):
@@ -237,8 +224,7 @@ class ConnAndOpsPhase(nn.Module):
         # First pass, build the graph without repairs.
         graph[1] = []
         for i in range(len(gene) - 1):
-            graph[i + 2] = [j +
-                            1 for j in range(len(gene[i])) if gene[i][j] == 1]
+            graph[i + 2] = [j + 1 for j in range(len(gene[i])) if gene[i][j] == 1]
 
         graph[len(gene) + 1] = [0] if residual else []
 
@@ -281,8 +267,7 @@ class ConnAndOpsPhase(nn.Module):
                 outputs.append(None)
 
             else:
-                outputs.append(
-                    self.nodes[i - 1](self.process_dependencies(i, outputs)))
+                outputs.append(self.nodes[i - 1](self.process_dependencies(i, outputs)))
 
         return self.out(self.process_dependencies(len(self.nodes) + 1, outputs))
 
@@ -294,8 +279,7 @@ class ConnAndOpsPhase(nn.Module):
         :return: Variable
         """
         return self.processors[node_idx](
-            torch.cat([outputs[i]
-                      for i in self.dependency_graph[node_idx]], dim=1),
+            torch.cat([outputs[i] for i in self.dependency_graph[node_idx]], dim=1),
         )
 
 
@@ -310,8 +294,7 @@ class ConnAndOpsDecoder(ChannelBasedDecoder):
         for idx, (gene, (in_channels, out_channels)) in enumerate(
             zip(self._genome, self._channels),
         ):
-            phases.append(ConnAndOpsPhase(
-                gene, in_channels, out_channels, idx))
+            phases.append(ConnAndOpsPhase(gene, in_channels, out_channels, idx))
 
         self._model = nn.Sequential(*self.build_layers(phases))
 
@@ -324,7 +307,6 @@ def test_decoder():
         [[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]],
         [[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]],
     ]
-    model = ConnAndOpsDecoder(
-        genome, [(3, 128), (128, 128), (128, 128)]).get_model()
+    model = ConnAndOpsDecoder(genome, [(3, 128), (128, 128), (128, 128)]).get_model()
     print(model)
     print(model(torch.randn(1, 3, 32, 32)).shape)

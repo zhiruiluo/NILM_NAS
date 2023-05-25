@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from abc import ABC
-from abc import abstractmethod
-from collections import OrderedDict
-from copy import copy
+from abc import ABC, abstractmethod
 
 import torch
 import torch.nn as nn
@@ -35,7 +32,7 @@ def phase_active(gene):
     :return: bool, true if active.
     """
     # The residual bit is not relevant in if a phase is active, so we ignore it, i.e. gene[:-1].
-    return sum([sum(t) for t in gene[:-1]]) != 0
+    return sum(sum(t) for t in gene[:-1]) != 0
 
 
 class ChannelBasedDecoder(Decoder):
@@ -144,7 +141,13 @@ class ResidualNode(nn.Module):
     """
 
     def __init__(
-        self, in_channels, out_channels, stride=1, kernel_size=3, padding=1, bias=False,
+        self,
+        in_channels,
+        out_channels,
+        stride=1,
+        kernel_size=3,
+        padding=1,
+        bias=False,
     ):
         """
         Constructor.
@@ -188,7 +191,13 @@ class PreactResidualNode(nn.Module):
     """
 
     def __init__(
-        self, in_channels, out_channels, stride=1, kernel_size=3, padding=1, bias=False,
+        self,
+        in_channels,
+        out_channels,
+        stride=1,
+        kernel_size=3,
+        padding=1,
+        bias=False,
     ):
         """
         Constructor.
@@ -272,9 +281,7 @@ class ResidualPhase(nn.Module):
         # At this point, we know which nodes will be receiving input from where.
         # So, we build the 1x1 convolutions that will deal with the depth-wise concatenations.
         #
-        conv1x1s = [Identity()] + [
-            Identity() for _ in range(max(self.dependency_graph.keys()))
-        ]
+        conv1x1s = [Identity()] + [Identity() for _ in range(max(self.dependency_graph.keys()))]
         for node_idx, dependencies in self.dependency_graph.items():
             if len(dependencies) > 1:
                 conv1x1s[node_idx] = nn.Conv2d(
@@ -285,8 +292,7 @@ class ResidualPhase(nn.Module):
                 )
 
         self.processors = nn.ModuleList(conv1x1s)
-        self.out = nn.Sequential(nn.BatchNorm2d(
-            out_channels), nn.ReLU(inplace=True))
+        self.out = nn.Sequential(nn.BatchNorm2d(out_channels), nn.ReLU(inplace=True))
 
     @staticmethod
     def build_dependency_graph(gene):
@@ -304,8 +310,7 @@ class ResidualPhase(nn.Module):
         # First pass, build the graph without repairs.
         graph[1] = []
         for i in range(len(gene) - 1):
-            graph[i + 2] = [j +
-                            1 for j in range(len(gene[i])) if gene[i][j] == 1]
+            graph[i + 2] = [j + 1 for j in range(len(gene[i])) if gene[i][j] == 1]
 
         graph[len(gene) + 1] = [0] if residual else []
 
@@ -348,8 +353,7 @@ class ResidualPhase(nn.Module):
                 outputs.append(None)
 
             else:
-                outputs.append(
-                    self.nodes[i - 1](self.process_dependencies(i, outputs)))
+                outputs.append(self.nodes[i - 1](self.process_dependencies(i, outputs)))
 
         return self.out(self.process_dependencies(len(self.nodes) + 1, outputs))
 
@@ -361,8 +365,7 @@ class ResidualPhase(nn.Module):
         :return: Variable
         """
         return self.processors[node_idx](
-            torch.cat([outputs[i]
-                      for i in self.dependency_graph[node_idx]], dim=1),
+            torch.cat([outputs[i] for i in self.dependency_graph[node_idx]], dim=1),
         )
 
 
@@ -389,8 +392,7 @@ class ResidualGenomeDecoder(ChannelBasedDecoder):
             zip(self._genome, self._channels),
         ):
             phases.append(
-                ResidualPhase(gene, in_channels, out_channels,
-                              idx, preact=preact),
+                ResidualPhase(gene, in_channels, out_channels, idx, preact=preact),
             )
 
         self._model = nn.Sequential(*self.build_layers(phases))
@@ -414,8 +416,7 @@ class ConnAndOpsDecoder(ChannelBasedDecoder):
             zip(self._genome, self._channels),
         ):
             phases.append(
-                ResidualPhase(gene, in_channels, out_channels,
-                              idx, preact=preact),
+                ResidualPhase(gene, in_channels, out_channels, idx, preact=preact),
             )
 
         self._model = nn.Sequential(*self.build_layers(phases))
@@ -428,7 +429,8 @@ def test_residual_decoder():
         [[0], [0, 1], [1, 0, 1], [1, 0, 1, 1], [1, 0, 0, 1, 1], [0]],
     ]
     model = ResidualGenomeDecoder(
-        genome, [(3, 128), (128, 128), (128, 128)],
+        genome,
+        [(3, 128), (128, 128), (128, 128)],
     ).get_model()
     print(model)
 
@@ -438,6 +440,5 @@ def test_decoder():
         [[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]],
         [[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]],
     ]
-    model = ConnAndOpsDecoder(
-        genome, [(3, 128), (128, 128), (128, 128)]).get_model()
+    model = ConnAndOpsDecoder(genome, [(3, 128), (128, 128), (128, 128)]).get_model()
     print(model)

@@ -1,17 +1,9 @@
 from __future__ import annotations
 
 import datetime
-import time
-from dataclasses import dataclass
-from dataclasses import field
+from dataclasses import dataclass, field
 
-from sqlalchemy import Column
-from sqlalchemy import DateTime
-from sqlalchemy import Float
-from sqlalchemy import Integer
-from sqlalchemy import Interval
-from sqlalchemy import String
-from sqlalchemy import Table
+from sqlalchemy import Column, DateTime, Float, Integer, Interval, String, Table
 from sqlalchemy.orm import registry
 
 mapper_registry = registry()
@@ -21,27 +13,27 @@ mapper_registry = registry()
 @dataclass
 class Results:
     __table__ = Table(
-        'results',
+        "results",
         mapper_registry.metadata,
-        Column('id', Integer, primary_key=True),
-        Column('model', String),
-        Column('model_params', String),
-        Column('dataset', String),
-        Column('data_params', String),
-        Column('train_acc', Float),
-        Column('train_f1macro', Float),
-        Column('train_f1micro', Float),
-        Column('val_acc', Float),
-        Column('val_f1macro', Float),
-        Column('val_f1micro', Float),
-        Column('test_acc', Float),
-        Column('test_f1macro', Float),
-        Column('test_f1micro', Float),
-        Column('start_time', DateTime),
-        Column('training_time', Interval),
-        Column('flops', Integer),
-        Column('params', String),
-        Column('nas_params', String),
+        Column("id", Integer, primary_key=True),
+        Column("model", String),
+        Column("model_params", String),
+        Column("dataset", String),
+        Column("data_params", String),
+        Column("train_acc", Float),
+        Column("train_f1macro", Float),
+        Column("train_f1micro", Float),
+        Column("val_acc", Float),
+        Column("val_f1macro", Float),
+        Column("val_f1micro", Float),
+        Column("test_acc", Float),
+        Column("test_f1macro", Float),
+        Column("test_f1micro", Float),
+        Column("start_time", DateTime),
+        Column("training_time", Interval),
+        Column("flops", Integer),
+        Column("params", String),
+        Column("nas_params", String),
     )
     id: int = field(init=False)
     model: str = None
@@ -68,25 +60,25 @@ class Results:
 @dataclass
 class MultilabelResults:
     __table__ = Table(
-        'multilabel_results',
+        "multilabel_results",
         mapper_registry.metadata,
-        Column('id', Integer, primary_key=True),
-        Column('model', String),
-        Column('model_params', String),
-        Column('dataset', String),
-        Column('data_params', String),
-        Column('train_accmacro', Float),
-        Column('train_f1macro', Float),
-        Column('val_accmacro', Float),
-        Column('val_f1macro', Float),
-        Column('test_accmacro', Float),
-        Column('test_f1macro', Float),
-        Column('start_time', DateTime),
-        Column('training_time', Interval),
-        Column('macs', Integer),
-        Column('flops', Integer),
-        Column('params', String),
-        Column('nas_params', String),
+        Column("id", Integer, primary_key=True),
+        Column("model", String),
+        Column("model_params", String),
+        Column("dataset", String),
+        Column("data_params", String),
+        Column("train_accmacro", Float),
+        Column("train_f1macro", Float),
+        Column("val_accmacro", Float),
+        Column("val_f1macro", Float),
+        Column("test_accmacro", Float),
+        Column("test_f1macro", Float),
+        Column("start_time", DateTime),
+        Column("training_time", Interval),
+        Column("macs", Integer),
+        Column("flops", Integer),
+        Column("params", String),
+        Column("nas_params", String),
     )
     id: int = field(init=False)
     model: str = None

@@ -21,7 +21,7 @@ def ops_decode(ops_bit_string, operator_bit_len=3):
     genome = []
     for i in range(n):
         idx = operator_bit_len * i
-        operator = ops_bit_string[idx: operator_bit_len + idx]
+        operator = ops_bit_string[idx : operator_bit_len + idx]
         genome.append(operator)
     return genome
 
@@ -30,7 +30,7 @@ def phase_decode(phase_bit_string):
     x = len(phase_bit_string) - 1
     n = int((np.sqrt(25 + 8 * x) - 5) / 2)
     con_d = connection_decode(phase_bit_string[: (n - 1) * n // 2 + 1])
-    ops_d = ops_decode(phase_bit_string[(n - 1) * n // 2 + 1:])
+    ops_d = ops_decode(phase_bit_string[(n - 1) * n // 2 + 1 :])
     return [con_d, ops_d]
 
 
@@ -52,7 +52,7 @@ def convert(bit_string, n_phases=3) -> list:
     phase_length = bit_string.shape[0] // n_phases
     genome = []
     for i in range(0, bit_string.shape[0], phase_length):
-        genome.append(bit_string[i: i + phase_length].tolist())
+        genome.append(bit_string[i : i + phase_length].tolist())
 
     return genome
 

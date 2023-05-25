@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import sys
-
-from dask import compute
-from dask import delayed
+from dask import compute, delayed
 from dask.distributed import Client
 from dask_jobqueue import SLURMCluster
 
@@ -18,14 +15,14 @@ from dask_jobqueue import SLURMCluster
 # which python
 
 cluster = SLURMCluster(
-    queue='small',
+    queue="small",
     # project = project_name,
     cores=2,
-    memory='8GB',
-    walltime='00:10:00',
-    interface='ib0',
+    memory="8GB",
+    walltime="00:10:00",
+    interface="ib0",
     # local_directory = "/scratch/<YOUR-PROJECT>/temp",
-    job_extra_directives=['--partition epscor'],
+    job_extra_directives=["--partition epscor"],
     # python = "/appl/soft/ai/cont_conda/python-data-2022-04-ubi8.5/bin/python"
 )
 
@@ -35,8 +32,7 @@ print(cluster.job_script())
 client = Client(cluster)
 
 list_of_delayed_functions = []
-datasets = ['/data/dataset1', '/data/dataset2',
-            '/data/dataset3', '/data/dataset4']
+datasets = ["/data/dataset1", "/data/dataset2", "/data/dataset3", "/data/dataset4"]
 
 
 def processDataset(dataset):

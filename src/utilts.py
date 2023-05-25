@@ -6,7 +6,6 @@ import os
 
 import numpy as np
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -22,13 +21,13 @@ def get_num_gpus():
     import torch
 
     num_gpus = torch.cuda.device_count()
-    logger.info(f'[num_gpus] {num_gpus}')
+    logger.info(f"[num_gpus] {num_gpus}")
     return num_gpus
 
 
 def cpu_count() -> int:
-    if os.environ.get('SLURM_CPUS_ON_NODE'):
-        cpus_reserved = int(os.environ['SLURM_CPUS_ON_NODE'])
+    if os.environ.get("SLURM_CPUS_ON_NODE"):
+        cpus_reserved = int(os.environ["SLURM_CPUS_ON_NODE"])
     else:
         cpus_reserved = 8
     return cpus_reserved
@@ -43,17 +42,18 @@ def cuda_available() -> bool:
 def set_cpu_affinity(num_cpus) -> None:
     import numpy as np
 
-    logger.info('[cpu affinity] %s', os.sched_getaffinity(0))
+    logger.info("[cpu affinity] %s", os.sched_getaffinity(0))
     cpu_count = os.cpu_count()
     choices = np.random.choice(
-        list(range(1, cpu_count)), replace=False, size=num_cpus,
+        list(range(1, cpu_count)),
+        replace=False,
+        size=num_cpus,
     ).tolist()
     if choices == []:
-        logger.info('[cpu affinity] use default setting %s',
-                    os.sched_getaffinity(0))
+        logger.info("[cpu affinity] use default setting %s", os.sched_getaffinity(0))
         return
     os.sched_setaffinity(0, choices)
-    logger.info('[cpu affinity] set new affinity %s', os.sched_getaffinity(0))
+    logger.info("[cpu affinity] set new affinity %s", os.sched_getaffinity(0))
 
 
 def pretty_print_confmx_pandas(confmx):
@@ -61,13 +61,13 @@ def pretty_print_confmx_pandas(confmx):
 
     if not isinstance(confmx, list) and not isinstance(confmx, np.ndarray):
         confmx = confmx.numpy()
-    pd.set_option('display.max_columns', None)
-    pd.set_option('display.width', 500)
+    pd.set_option("display.max_columns", None)
+    pd.set_option("display.width", 500)
     df_confmx = pd.DataFrame(confmx)
-    df_confmx['sum'] = df_confmx.sum(axis=1)
+    df_confmx["sum"] = df_confmx.sum(axis=1)
     str_confmx = str(df_confmx)
-    pd.reset_option('display.max_columns')
-    pd.reset_option('display.width')
+    pd.reset_option("display.max_columns")
+    pd.reset_option("display.width")
     return str_confmx
 
 
@@ -106,7 +106,9 @@ def get_padding_same(kernel: int | tuple, dilation: int | tuple = 1, num_dim: in
 
 
 def get_padding_one_more_or_same(
-    kernel: int | tuple, dilation: int | tuple = 1, num_dim: int = 2,
+    kernel: int | tuple,
+    dilation: int | tuple = 1,
+    num_dim: int = 2,
 ):
     """Calculate the padding for `same` in different strides
 
@@ -140,5 +142,5 @@ def get_padding_one_more_or_same(
             paddings += (d * (k) // 2,)
         else:
             paddings += (d * (k - 1) // 2,)
-    logger.info(f'{paddings}')
+    logger.info(f"{paddings}")
     return paddings

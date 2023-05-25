@@ -1,8 +1,8 @@
 from __future__ import annotations
-from sqlalchemy import func
 
 import logging
-from typing import List
+
+from sqlalchemy import func
 
 from src.base_module.configs import ExpResults
 from src.config_options.option_def import MyProgramArgs
@@ -63,9 +63,8 @@ class ResultSqliteDao(ResultDao):
             params=result.params.dumps_json(),
             nas_params=result.nas_params,
         )
-        logger.info(
-            f'[ResultSqlitDao] save results to {self.sqlite_engine.db_path}')
-        logger.info(f'[ResultSqlitDao]  *********\n {result_} \n *********')
+        logger.info(f"[ResultSqlitDao] save results to {self.sqlite_engine.db_path}")
+        logger.info(f"[ResultSqlitDao]  *********\n {result_} \n *********")
         self.sqlite_engine.insert(result_)
 
     # def get_best_config(self, model, dataset):
@@ -111,5 +110,5 @@ class ResultDaoFactory:
         self._engine = engine
 
     def get_dao(self):
-        if self._engine.engine_name() == 'SQLite':
+        if self._engine.engine_name() == "SQLite":
             return ResultSqliteDao(self._engine)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from einops import rearrange
 from sklearn.ensemble import RandomForestClassifier
 
 from src.base_module.base_sklearn import SklearnBaseModule

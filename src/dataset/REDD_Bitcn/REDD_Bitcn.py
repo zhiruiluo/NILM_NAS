@@ -7,15 +7,14 @@ import pytorch_lightning as pl
 import torch
 from ml_toolkit.utils.decorator import disk_buffer
 from numpy.lib.stride_tricks import sliding_window_view
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 
-from ..sampler import ImbalancedDatasetSampler
-from .redd_load import load_redd_bitcn
-from src.base_module.base_lightningdata import LightningBaseDataModule
 from src.config_options.dataset_configs import DatasetConfig_REDD_Bitcn
 from src.config_options.option_def import MyProgramArgs
 from src.context import get_project_root
+
+from ..sampler import ImbalancedDatasetSampler
+from .redd_load import load_redd_bitcn
 
 
 class Seq2pointDataset(Dataset):
@@ -24,7 +23,8 @@ class Seq2pointDataset(Dataset):
         # self.input = torch.tensor(np_data[:,0], dtype=torch.float32)
         # self.target = torch.tensor(np_data[:,1], dtype=torch.long)
         win_view = sliding_window_view(
-            np.arange(self.np_data.shape[0]), window_shape=win_size,
+            np.arange(self.np_data.shape[0]),
+            window_shape=win_size,
         )
         self.indices = list(range(0, win_view.shape[0], stride))
         self.length = len(self.indices)
@@ -42,8 +42,8 @@ class Seq2pointDataset(Dataset):
         win_indices = self.win_view[idx]
         # return {'input': self.input[idx], "target": self.target[idx]}
         return {
-            'input': torch.tensor(self.np_data[win_indices, 0], dtype=torch.float32),
-            'target': torch.tensor(self.np_data[win_indices[-1], 1], dtype=torch.long),
+            "input": torch.tensor(self.np_data[win_indices, 0], dtype=torch.float32),
+            "target": torch.tensor(self.np_data[win_indices[-1], 1], dtype=torch.long),
         }
 
     def __len__(self):
@@ -51,9 +51,12 @@ class Seq2pointDataset(Dataset):
 
 
 def apply_transform(
-    train: dict[str, list], val: dict[str, list], test: dict[str, list], t,
+    train: dict[str, list],
+    val: dict[str, list],
+    test: dict[str, list],
+    t,
 ):
-    for f in ['mains_1', 'mains_2']:
+    for f in ["mains_1", "mains_2"]:
         train[f] = t.fit_transform(train[f]).tolist()
         val[f] = t.transform(val[f]).tolist()
         test[f] = t.transform(test[f]).tolist()
@@ -91,8 +94,7 @@ def data_augmentation(train):
             c += i * v
         return c
 
-    df_train_last['powerlabel'] = df_train_last.apply(
-        power, axis=1).astype(int)
+    df_train_last["powerlabel"] = df_train_last.apply(power, axis=1).astype(int)
     from imblearn.over_sampling import RandomOverSampler
 
     sampler = RandomOverSampler()
@@ -100,11 +102,12 @@ def data_augmentation(train):
     # plt.savefig('results/powerlabel.png')
 
     df_train_resampled, df_y_resampled = sampler.fit_resample(
-        df_train, df_train_last['powerlabel'],
+        df_train,
+        df_train_last["powerlabel"],
     )
     # df_y_resampled.hist(figsize=(5,5))
     # plt.savefig('results/resampled.png')
-    return df_train_resampled.to_dict('list')
+    return df_train_resampled.to_dict("list")
 
 
 class REDD_Bitcn(pl.LightningDataModule):
@@ -112,14 +115,16 @@ class REDD_Bitcn(pl.LightningDataModule):
         super().__init__()
         self.config: DatasetConfig_REDD_Bitcn = args.datasetConfig
         self.prepare_data_per_node = False
-        self.save_hyperparameters('args')
-        self.data_root = 'data/low_freq/'
+        self.save_hyperparameters("args")
+        self.data_root = "data/low_freq/"
         self.args = args
 
     def visualize(self):
-        folder = get_project_root().joinpath('.temp').as_posix()
+        folder = get_project_root().joinpath(".temp").as_posix()
         with disk_buffer(
-            func=load_redd_bitcn, keys=str(self.config.appliance), folder=folder,
+            func=load_redd_bitcn,
+            keys=str(self.config.appliance),
+            folder=folder,
         ) as bf_fn:
             train, val, test = bf_fn(self.data_root, self.config.appliance)
 
@@ -134,38 +139,45 @@ class REDD_Bitcn(pl.LightningDataModule):
                 c += i * v
             return c
 
-        df_train_last['powerlabel'] = df_train_last.apply(
-            power, axis=1).astype(int)
+        df_train_last["powerlabel"] = df_train_last.apply(power, axis=1).astype(int)
 
         df_train_last.hist(figsize=(10, 10))
-        plt.savefig('results/power_label.png')
+        plt.savefig("results/power_label.png")
 
     def prepare_data(self) -> None:
-        folder = get_project_root().joinpath('.temp').as_posix()
+        folder = get_project_root().joinpath(".temp").as_posix()
         with disk_buffer(
-            func=load_redd_bitcn, keys=str(self.config.appliance), folder=folder,
+            func=load_redd_bitcn,
+            keys=str(self.config.appliance),
+            folder=folder,
         ) as bf_fn:
             train, val, test = bf_fn(self.data_root, self.config.appliance)
 
         # train, val, test = minmax(train, val, test)
         # train = data_augmentation(train)
         self.train_set = Seq2pointDataset(
-            train, self.config.win_size, self.config.stride,
+            train,
+            self.config.win_size,
+            self.config.stride,
         )
-        self.val_set = Seq2pointDataset(
-            val, self.config.win_size, self.config.stride)
-        self.test_set = Seq2pointDataset(
-            test, self.config.win_size, self.config.stride)
+        self.val_set = Seq2pointDataset(val, self.config.win_size, self.config.stride)
+        self.test_set = Seq2pointDataset(test, self.config.win_size, self.config.stride)
         self.nclass = 2
 
     def setup(self, stage: str) -> None:
-        if stage == 'fit':
+        if stage == "fit":
             ...
-        if stage == 'test':
+        if stage == "test":
             ...
 
     def _to_dataloader(
-        self, dataset, shuffle, batch_size, num_workers, drop_last, sampler=None,
+        self,
+        dataset,
+        shuffle,
+        batch_size,
+        num_workers,
+        drop_last,
+        sampler=None,
     ):
         if sampler:
             shuffle = False
@@ -217,10 +229,10 @@ def test_redd():
     from src.config_options import OptionManager
 
     opt = OptionManager()
-    args = opt.replace_params({'datasetConfig': 'REDD_Bitcn'})
+    args = opt.replace_params({"datasetConfig": "REDD_Bitcn"})
     ds = REDD_Bitcn(args)
     ds.prepare_data()
-    ds.setup('fit')
+    ds.setup("fit")
     for batch in ds.train_dataloader():
         print(batch)
         break
@@ -230,6 +242,6 @@ def test_visual():
     from src.config_options import OptionManager
 
     opt = OptionManager()
-    args = opt.replace_params({'datasetConfig': 'REDD_Bitcn'})
+    args = opt.replace_params({"datasetConfig": "REDD_Bitcn"})
     ds = REDD_Bitcn(args)
     ds.visualize()

@@ -12,4 +12,4 @@ class BaseDatabaseEngine:
         self.db_path = self.db_dir.joinpath(db_name)
 
     def engine_name(self) -> str:
-        return 'base'
+        return "base"

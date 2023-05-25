@@ -13,8 +13,7 @@ class BaseTraining:
 
     def _check_type(self, model, base_type):
         if not isinstance(model, base_type):
-            raise TypeError(
-                f'Model is not the type {base_type}, but {type(model)}!')
+            raise TypeError(f"Model is not the type {base_type}, but {type(model)}!")
 
     def train(self) -> ExpResults:
         pass

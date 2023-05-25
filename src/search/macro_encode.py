@@ -25,7 +25,7 @@ def convert(bit_string, n_phases=3):
     phase_length = bit_string.shape[0] // n_phases
     genome = []
     for i in range(0, bit_string.shape[0], phase_length):
-        genome.append((bit_string[i: i + phase_length]).tolist())
+        genome.append((bit_string[i : i + phase_length]).tolist())
 
     return genome
 
@@ -38,7 +38,7 @@ def decode(genome):
     return genotype
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     n_phases = 3
     bit_string = np.random.randint(0, 2, size=21)
     print(bit_string)

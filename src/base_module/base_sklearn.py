@@ -17,14 +17,13 @@ class SklearnBaseModule(BaseEstimator):
     def __init__(self, args: MyProgramArgs) -> None:
         super().__init__()
         self.args = args
-        self.metrics_init(args.modelConfig.nclass,
-                          args.modelBaseConfig.label_mode)
+        self.metrics_init(args.modelConfig.nclass, args.modelBaseConfig.label_mode)
 
     def get_skmodel(self):
         return
 
     def on_train(self, x_all, y_all):
-        logger.info('[on_train]')
+        logger.info("[on_train]")
         self.get_skmodel().fit(x_all, y_all)
         y_hat = self.get_skmodel().predict(x_all)
         return y_hat
@@ -41,42 +40,41 @@ class SklearnBaseModule(BaseEstimator):
         return x_all
 
     def fit(self, datamodule):
-        logger.info('[SklearnBase] start fitting')
-        datamodule.setup('fit')
+        logger.info("[SklearnBase] start fitting")
+        datamodule.setup("fit")
         for phase, dl in zip(
-            ['train', 'val'],
+            ["train", "val"],
             [datamodule.train_dataloader(), datamodule.val_dataloader()],
         ):
             samples, s_type = self._dataloader_to_numpy(dl)
-            if s_type == 'tuple':
+            if s_type == "tuple":
                 x_all = samples[0]
                 y_all = samples[1]
-            elif s_type == 'dict':
-                x_all = samples['input']
-                y_all = samples['target']
+            elif s_type == "dict":
+                x_all = samples["input"]
+                y_all = samples["target"]
 
             x_all = self.on_reshape(x_all)
-            if phase == 'train':
+            if phase == "train":
                 y_hat = self.on_train(x_all, y_all)
             else:
                 y_hat = self.on_val(x_all, y_all)
 
-            logger.debug(f'y_hat {y_hat.shape} {y_all.shape}')
+            logger.debug(f"y_hat {y_hat.shape} {y_all.shape}")
             self.metrics(phase, torch.tensor(y_hat), torch.tensor(y_all))
             self.metrics_end(phase)
 
     def test(self, datamodule):
-        logger.info('[SklearnBase] start testing')
-        datamodule.setup('test')
-        phase = 'test'
-        samples, s_type = self._dataloader_to_numpy(
-            datamodule.test_dataloader())
-        if s_type == 'tuple':
+        logger.info("[SklearnBase] start testing")
+        datamodule.setup("test")
+        phase = "test"
+        samples, s_type = self._dataloader_to_numpy(datamodule.test_dataloader())
+        if s_type == "tuple":
             x_all = samples[0]
             y_all = samples[1]
-        elif s_type == 'dict':
-            x_all = samples['input']
-            y_all = samples['target']
+        elif s_type == "dict":
+            x_all = samples["input"]
+            y_all = samples["target"]
         x_all = self.on_reshape(x_all)
         y_hat = self.on_test(x_all, y_all)
         self.metrics(phase, torch.tensor(y_hat), torch.tensor(y_all))

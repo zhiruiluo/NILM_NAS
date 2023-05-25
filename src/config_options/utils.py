@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 
 class PowerConvertor:
     def __init__(self, base=2, dtype=int, *, default):
@@ -10,7 +8,7 @@ class PowerConvertor:
         self.dtype = dtype
 
     def __set_name__(self, owner, name):
-        self._name = '_' + name
+        self._name = "_" + name
 
     def __get__(self, obj, type):
         if obj is None:
@@ -27,7 +25,7 @@ class IntegerConvertor:
         self._default = default
 
     def __set_name__(self, owner, name):
-        self._name = '_' + name
+        self._name = "_" + name
 
     def __get__(self, obj, type):
         if obj is None:
@@ -45,7 +43,7 @@ class LambdaConvertor:
         self._default = default
 
     def __set_name__(self, owner, name):
-        self._name = '_' + name
+        self._name = "_" + name
 
     def __get__(self, obj, type):
         if obj is None:

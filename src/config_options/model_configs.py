@@ -1,13 +1,8 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import List
 
 from simple_parsing import Serializable
-
-from .utils import IntegerConvertor
-from .utils import LambdaConvertor
-from .utils import PowerConvertor
 
 
 @dataclasses.dataclass
@@ -108,7 +103,7 @@ class ModelConfig_BitcnNILM(LightningModel):
 class ModelConfig_TSNet(LightningModel):
     nclass: int = 3
     n_phases: int = 3
-    bit_string: str = '010100011101001010001110100101000111010'
+    bit_string: str = "010100011101001010001110100101000111010"
     in_channels: int = 1
     out_channels: int = 32
     dropout: float = 0.5
@@ -117,7 +112,7 @@ class ModelConfig_TSNet(LightningModel):
 @dataclasses.dataclass
 class ModelConfig_RF(SklearnModel, Serializable):
     n_estimators: int = 100
-    criterion: str = 'gini'
+    criterion: str = "gini"
     max_depth: int | None = None
     min_samples_split: int = 2
     min_samples_leaf: int = 1

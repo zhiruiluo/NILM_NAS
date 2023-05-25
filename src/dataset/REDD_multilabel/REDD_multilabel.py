@@ -1,41 +1,34 @@
 from __future__ import annotations
 
-from typing import List
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
-import torch
 from ml_toolkit.utils.decorator import disk_buffer
 from numpy.lib.stride_tricks import sliding_window_view
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
-from ..sampler import ImbalancedDatasetSampler
-from .custom_transform import ApplyPowerLabel
-from .custom_transform import MinMax
-from .custom_transform import NumpyToTensor
-from .redd_load import dataset_by_house
-from .redd_load import get_dataset
-from src.base_module.base_lightningdata import LightningBaseDataModule
 from src.config_options.dataset_configs import DatasetConfig_REDD_multilabel
 from src.config_options.option_def import MyProgramArgs
 from src.context import get_project_root
 
+from ..sampler import ImbalancedDatasetSampler
+from .custom_transform import ApplyPowerLabel, MinMax, NumpyToTensor
+from .redd_load import dataset_by_house, get_dataset
+
 appliances = {
-    'house_1': {
-        'refrigerator': [5],
-        'microwave': [11],
-        'dishwasher': [6],
-        'washer_dryer': [20],
+    "house_1": {
+        "refrigerator": [5],
+        "microwave": [11],
+        "dishwasher": [6],
+        "washer_dryer": [20],
     },
-    'house_2': {
-        'refrigerator': [9],
-        'microwave': [6],
-        'dishwasher': [10],
-        'washer_dryer': [7],
+    "house_2": {
+        "refrigerator": [9],
+        "microwave": [6],
+        "dishwasher": [10],
+        "washer_dryer": [7],
     },
 }
 
@@ -53,15 +46,16 @@ class Seq2PointMultilabelDataset(Dataset):
         self.selected_channels = selected_channels
         self.transform = transform
 
-        self.input = df_data[['mains_1', 'mains_2']].to_numpy()
+        self.input = df_data[["mains_1", "mains_2"]].to_numpy()
         threshold = 10
-        target = df_data.drop(['mains_1', 'mains_2'], axis=1).applymap(
+        target = df_data.drop(["mains_1", "mains_2"], axis=1).applymap(
             lambda x: 1 if x > threshold else 0,
         )
         self.target = target.to_numpy()
 
         self.win_view = sliding_window_view(
-            np.arange(self.input.shape[0]), window_shape=win_size,
+            np.arange(self.input.shape[0]),
+            window_shape=win_size,
         )
         # selftarget_win_view = sliding_window_view(np.arange(self.input.shape[0]), window_shape=win_size)
         self.indices = np.arange(0, self.win_view.shape[0], stride)
@@ -71,8 +65,8 @@ class Seq2PointMultilabelDataset(Dataset):
         idx = self.indices[index]
         win_indices = self.win_view[idx]
         sample = {
-            'input': self.input[win_indices, 0],
-            'target': self.target[win_indices[-1]],
+            "input": self.input[win_indices, 0],
+            "target": self.target[win_indices[-1]],
         }
         if self.transform:
             return self.transform(sample)
@@ -104,13 +98,13 @@ class MultilabelDataset(Dataset):
         self.transform = transform
 
         self.input = np.stack(
-            (self.dc.get('mains_1', None), self.dc.get('mains_2', None)),
+            (self.dc.get("mains_1", None), self.dc.get("mains_2", None)),
             dtype=np.float32,
         )
 
         keys = set(self.dc.keys())
-        keys.discard('mains_1')
-        keys.discard('mains_2')
+        keys.discard("mains_1")
+        keys.discard("mains_2")
         keys = sorted(list(keys))
 
         labels = []
@@ -120,7 +114,7 @@ class MultilabelDataset(Dataset):
                 set_chs.add(str(ch))
 
         for k in keys:
-            if k.split('_')[-1] in set_chs:
+            if k.split("_")[-1] in set_chs:
                 # print(np.shape(self.dc[k]))
                 # exit()
                 labels.append(np.array(self.dc[k]))
@@ -129,7 +123,7 @@ class MultilabelDataset(Dataset):
         self._len = self.input.shape[0]
 
     def __getitem__(self, index):
-        sample = {'input': self.input[index], 'target': self.target[index, -1]}
+        sample = {"input": self.input[index], "target": self.target[index, -1]}
         if self.transform:
             return self.transform(sample)
         return sample
@@ -146,9 +140,12 @@ class MultilabelDataset(Dataset):
 
 
 def apply_transform(
-    train: dict[str, list], val: dict[str, list], test: dict[str, list], t,
+    train: dict[str, list],
+    val: dict[str, list],
+    test: dict[str, list],
+    t,
 ):
-    for f in ['mains_1', 'mains_2']:
+    for f in ["mains_1", "mains_2"]:
         train[f] = t.fit_transform(train[f]).tolist()
         val[f] = t.transform(val[f]).tolist()
         test[f] = t.transform(test[f]).tolist()
@@ -186,8 +183,7 @@ def data_augmentation(train):
             c += i * v
         return c
 
-    df_train_last['powerlabel'] = df_train_last.apply(
-        power, axis=1).astype(int)
+    df_train_last["powerlabel"] = df_train_last.apply(power, axis=1).astype(int)
     from imblearn.over_sampling import RandomOverSampler
 
     sampler = RandomOverSampler()
@@ -195,11 +191,12 @@ def data_augmentation(train):
     # plt.savefig('results/powerlabel.png')
 
     df_train_resampled, df_y_resampled = sampler.fit_resample(
-        df_train, df_train_last['powerlabel'],
+        df_train,
+        df_train_last["powerlabel"],
     )
     # df_y_resampled.hist(figsize=(5,5))
     # plt.savefig('results/resampled.png')
-    return df_train_resampled.to_dict('list')
+    return df_train_resampled.to_dict("list")
 
 
 class REDD_multilabel(pl.LightningDataModule):
@@ -207,17 +204,18 @@ class REDD_multilabel(pl.LightningDataModule):
         super().__init__()
         self.config: DatasetConfig_REDD_multilabel = args.datasetConfig
         self.prepare_data_per_node = False
-        self.save_hyperparameters('args')
-        self.data_root = 'data/low_freq/'
+        self.save_hyperparameters("args")
+        self.data_root = "data/low_freq/"
         self.args = args
 
     def visualize(self):
-        folder = get_project_root().joinpath('.temp').as_posix()
+        folder = get_project_root().joinpath(".temp").as_posix()
         with disk_buffer(
-            func=dataset_by_house, keys=str(self.config.house_no), folder=folder,
+            func=dataset_by_house,
+            keys=str(self.config.house_no),
+            folder=folder,
         ) as bf_dataset_by_house:
-            train, val, test = bf_dataset_by_house(
-                self.config.house_no, self.data_root)
+            train, val, test = bf_dataset_by_house(self.config.house_no, self.data_root)
 
         df_train = pd.DataFrame.from_dict(train)
         df_train_last = df_train.applymap(lambda x: x[-1])
@@ -230,50 +228,48 @@ class REDD_multilabel(pl.LightningDataModule):
                 c += i * v
             return c
 
-        df_train_last['powerlabel'] = df_train_last.apply(
-            power, axis=1).astype(int)
+        df_train_last["powerlabel"] = df_train_last.apply(power, axis=1).astype(int)
 
         df_train_last.hist(figsize=(10, 10))
-        plt.savefig('results/power_label.png')
+        plt.savefig("results/power_label.png")
 
     def prepare_data_(self) -> None:
-        folder = get_project_root().joinpath('.temp').as_posix()
+        folder = get_project_root().joinpath(".temp").as_posix()
         with disk_buffer(
-            func=dataset_by_house, keys=str(self.config.house_no), folder=folder,
+            func=dataset_by_house,
+            keys=str(self.config.house_no),
+            folder=folder,
         ) as bf_dataset_by_house:
-            train, val, test = bf_dataset_by_house(
-                self.config.house_no, self.data_root)
+            train, val, test = bf_dataset_by_house(self.config.house_no, self.data_root)
 
         selected_channels = [
-            appliances[f'house_{self.config.house_no}'][app]
-            for app in self.config.appliances
+            appliances[f"house_{self.config.house_no}"][app] for app in self.config.appliances
         ]
         transform = transforms.Compose(
             [
-                MinMax(train, ['mains_1', 'mains_2']),
+                MinMax(train, ["mains_1", "mains_2"]),
                 # ApplyPowerLabel(),
                 NumpyToTensor(),
             ],
         )
         self.train_set = MultilabelDataset(
-            train, selected_channels, transform=transform,
+            train,
+            selected_channels,
+            transform=transform,
         )
-        self.val_set = MultilabelDataset(
-            val, selected_channels, transform=transform)
-        self.test_set = MultilabelDataset(
-            test, selected_channels, transform=transform)
+        self.val_set = MultilabelDataset(val, selected_channels, transform=transform)
+        self.test_set = MultilabelDataset(test, selected_channels, transform=transform)
         self.nclass = len(train) - 2
 
     def prepare_data(self):
-        folder = get_project_root().joinpath('.temp').as_posix()
+        folder = get_project_root().joinpath(".temp").as_posix()
 
         selected_channels = [
-            appliances[f'house_{self.config.house_no}'][app]
-            for app in self.config.appliances
+            appliances[f"house_{self.config.house_no}"][app] for app in self.config.appliances
         ]
         with disk_buffer(
             func=get_dataset,
-            keys=str(self.config.house_no) + 'redd_ml_s2p',
+            keys=str(self.config.house_no) + "redd_ml_s2p",
             folder=folder,
         ) as bf_get_dataset:
             train, val, test = bf_get_dataset(
@@ -283,8 +279,7 @@ class REDD_multilabel(pl.LightningDataModule):
             )
 
         transform = transforms.Compose(
-            [MinMax(train, ['mains_1', 'mains_2']),
-             ApplyPowerLabel(), NumpyToTensor()],
+            [MinMax(train, ["mains_1", "mains_2"]), ApplyPowerLabel(), NumpyToTensor()],
         )
         self.train_set = Seq2PointMultilabelDataset(
             train,
@@ -310,13 +305,19 @@ class REDD_multilabel(pl.LightningDataModule):
         self.nclass = len(selected_channels)
 
     def setup(self, stage: str) -> None:
-        if stage == 'fit':
+        if stage == "fit":
             ...
-        if stage == 'test':
+        if stage == "test":
             ...
 
     def _to_dataloader(
-        self, dataset, shuffle, batch_size, num_workers, drop_last, sampler=None,
+        self,
+        dataset,
+        shuffle,
+        batch_size,
+        num_workers,
+        drop_last,
+        sampler=None,
     ):
         if sampler:
             shuffle = False
@@ -375,7 +376,7 @@ def test_redd():
     with p:
         ds = REDD_multilabel(args)
         ds.prepare_data()
-        ds.setup('fit')
+        ds.setup("fit")
         for batch in ds.train_dataloader():
             print(batch)
             break

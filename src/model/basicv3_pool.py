@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import List
-from typing import Tuple
-from typing import Union
 
 import torch
 import torch.nn as nn
@@ -51,8 +48,7 @@ class FCN_Block2d(nn.Module):
     ) -> None:
         super().__init__()
         layers = []
-        layers += [nn.Conv2d(inplane, outplane, kernel,
-                             stride, padding, bias=bias)]
+        layers += [nn.Conv2d(inplane, outplane, kernel, stride, padding, bias=bias)]
         if batchnorm:
             layers += [nn.BatchNorm2d(outplane)]
         layers += [nn.ReLU(inplace=True)]
@@ -111,14 +107,18 @@ class BasicV3_Pool(LightningBaseModule):
         stride_list = [config.stride_1, config.stride_2, config.stride_3]
         padding_list = [get_padding_one_more_or_same(k) for k in ker_list]
         logger.debug(
-            f'chan_list {chan_list}\n'
-            f'ker_list {ker_list}\n'
-            f'stride_list {stride_list}\n'
-            f'padding_list {padding_list}',
+            f"chan_list {chan_list}\n"
+            f"ker_list {ker_list}\n"
+            f"stride_list {stride_list}\n"
+            f"padding_list {padding_list}",
         )
 
         self.conv1 = nn.Conv2d(
-            1, 1, kernel_size=11, stride=4, padding=get_padding_one_more_or_same(11),
+            1,
+            1,
+            kernel_size=11,
+            stride=4,
+            padding=get_padding_one_more_or_same(11),
         )
         self.fcn = FCN(
             config.in_channels,
@@ -133,22 +133,22 @@ class BasicV3_Pool(LightningBaseModule):
             nn.Dropout(config.dropout),
             spectral_norm(nn.Linear(self.fcn.out_channel, config.nclass)),
         )
-        if args.modelBaseConfig.label_mode == 'multilabel':
+        if args.modelBaseConfig.label_mode == "multilabel":
             self.loss_fn = nn.BCEWithLogitsLoss()
-        elif args.modelBaseConfig.label_mode == 'multiclass':
+        elif args.modelBaseConfig.label_mode == "multiclass":
             self.loss_fn = nn.CrossEntropyLoss(
                 label_smoothing=args.modelBaseConfig.label_smoothing,
             )
 
     def loss(self, predictions, batch):
-        pred = predictions['pred']
-        target = batch['target']
+        pred = predictions["pred"]
+        target = batch["target"]
         # return F.binary_cross_entropy_with_logits(output, target)
         return self.loss_fn(pred, target)
 
     def forward(self, batch):
-        x = batch['input']
-        x = rearrange(x, 'b (v t)  -> b 1 v t', v=60)
+        x = batch["input"]
+        x = rearrange(x, "b (v t)  -> b 1 v t", v=60)
         # x = rearrange(x, 'b t -> b 1 1 t')
         x = self.conv1(x)
         x = self.fcn(x)
@@ -157,31 +157,34 @@ class BasicV3_Pool(LightningBaseModule):
 
         # if self.training:
         predictions = {}
-        if self.args.modelBaseConfig.label_mode == 'multilabel':
-            predictions['output'] = torch.round(F.sigmoid(x))
-            predictions['pred'] = torch.round(F.sigmoid(x))
+        if self.args.modelBaseConfig.label_mode == "multilabel":
+            predictions["output"] = torch.round(F.sigmoid(x))
+            predictions["pred"] = torch.round(F.sigmoid(x))
         else:
-            predictions['output'] = torch.max(x, dim=1)[1]
-            predictions['pred'] = x
-        predictions['loss'] = self.loss(predictions, batch)
+            predictions["output"] = torch.max(x, dim=1)[1]
+            predictions["pred"] = x
+        predictions["loss"] = self.loss(predictions, batch)
         return predictions
 
 
 def test_basicV3():
-    from src.config_options.model_configs import ModelConfig_BasicV3_Pool
-    from src.config_options import OptionManager
     from deepspeed.profiling.flops_profiler import get_model_profile
+
+    from src.config_options import OptionManager
+    from src.config_options.model_configs import ModelConfig_BasicV3_Pool
 
     opt = OptionManager()
     args = opt.replace_params(
-        {'modelConfig': 'BasicV2', 'modelBaseConfig.label_mode': 'multiclass'},
+        {"modelConfig": "BasicV2", "modelBaseConfig.label_mode": "multiclass"},
     )
-    args.modelConfig = ModelConfig_BasicV3_Pool(
-        5, 5, 5, 16, 8, 8, 1, 1, 1, 0.5, 1, 2)
+    args.modelConfig = ModelConfig_BasicV3_Pool(5, 5, 5, 16, 8, 8, 1, 1, 1, 0.5, 1, 2)
     model = BasicV3_Pool(args)
-    batch = {'input': torch.randn(1, 600), 'target': torch.randn(1, 2)}
+    batch = {"input": torch.randn(1, 600), "target": torch.randn(1, 2)}
     flops, macs, params = get_model_profile(
-        model, args=[batch], as_string=False, print_profile=False,
+        model,
+        args=[batch],
+        as_string=False,
+        print_profile=False,
     )  # flops: 3756395, macs: 1864650, params: 4537
-    print(f'flops: {flops}, macs: {macs}, params: {params}')
+    print(f"flops: {flops}, macs: {macs}, params: {params}")
     # model(batch)
