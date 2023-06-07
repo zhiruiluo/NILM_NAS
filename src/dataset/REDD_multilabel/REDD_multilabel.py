@@ -30,8 +30,31 @@ appliances = {
         "dishwasher": [10],
         "washer_dryer": [7],
     },
+    "house_3": {
+        "refrigerator": [7],
+        "microwave": [16],
+        "dishwasher": [9],
+        "washer_dryer": [13],
+    },
+    "house_4": {
+        "refrigerator": [],
+        "microwave": [],
+        "dishwasher": [15],
+        "washer_dryer": [7],
+    },
+    "house_5": {
+        "refrigerator": [18],
+        "microwave": [3],
+        "dishwasher": [20],
+        "washer_dryer": [9],
+    },
+    "house_6": {
+        "refrigerator": [8],
+        "microwave": [],
+        "dishwasher": [9],
+        "washer_dryer": [4],
+    },
 }
-
 
 class Seq2PointMultilabelDataset(Dataset):
     def __init__(
@@ -45,10 +68,14 @@ class Seq2PointMultilabelDataset(Dataset):
     ) -> None:
         self.selected_channels = selected_channels
         self.transform = transform
-
-        self.input = df_data[["mains_1", "mains_2"]].to_numpy()
+        if not combine_mains:
+            self.input = df_data[["mains_1", "mains_2"]].to_numpy()
+            target = df_data.drop(["mains_1", "mains_2"], axis=1)
+        else:
+            self.input = df_data[['mains_comb']].to_numpy()
+            target = df_data.drop(["mains_1", "mains_2","mains_comb"], axis=1)
         threshold = 10
-        target = df_data.drop(["mains_1", "mains_2"], axis=1).applymap(
+        target = target.applymap(
             lambda x: 1 if x > threshold else 0,
         )
         self.target = target.to_numpy()
@@ -65,7 +92,7 @@ class Seq2PointMultilabelDataset(Dataset):
         idx = self.indices[index]
         win_indices = self.win_view[idx]
         sample = {
-            "input": self.input[win_indices, 0],
+            "input": self.input[win_indices],
             "target": self.target[win_indices[-1]],
         }
         if self.transform:
@@ -81,122 +108,6 @@ class Seq2PointMultilabelDataset(Dataset):
         powerlabel = np.apply_along_axis(lambda x: np.inner(y, x), 1, labels)
         # print(powerlabel)
         return powerlabel
-
-
-class MultilabelDataset(Dataset):
-    def __init__(
-        self,
-        dc,
-        selected_channels: list[str],
-        seq_to_point: bool = True,
-        combine_mains: bool = False,
-        transform=None,
-    ) -> None:
-        self.dc = dc
-        self.selected_channels = selected_channels
-        self.seq_to_point = seq_to_point
-        self.transform = transform
-
-        self.input = np.stack(
-            (self.dc.get("mains_1", None), self.dc.get("mains_2", None)),
-            dtype=np.float32,
-        )
-
-        keys = set(self.dc.keys())
-        keys.discard("mains_1")
-        keys.discard("mains_2")
-        keys = sorted(list(keys))
-
-        labels = []
-        set_chs = set()
-        for chs in selected_channels:
-            for ch in chs:
-                set_chs.add(str(ch))
-
-        for k in keys:
-            if k.split("_")[-1] in set_chs:
-                # print(np.shape(self.dc[k]))
-                # exit()
-                labels.append(np.array(self.dc[k]))
-
-        self.target = np.stack(labels, axis=2, dtype=np.float32)
-        self._len = self.input.shape[0]
-
-    def __getitem__(self, index):
-        sample = {"input": self.input[index], "target": self.target[index, -1]}
-        if self.transform:
-            return self.transform(sample)
-        return sample
-
-    def __len__(self):
-        return self._len
-
-    # def get_labels(self):
-    #     powerlabel = np.apply_along_axis(
-    #         lambda x: np.sum(np.arange(len(x))**2*x),
-    #         1, self.target[:,-1,:])
-    #     print(powerlabel)
-    #     return powerlabel.tolist()
-
-
-def apply_transform(
-    train: dict[str, list],
-    val: dict[str, list],
-    test: dict[str, list],
-    t,
-):
-    for f in ["mains_1", "mains_2"]:
-        train[f] = t.fit_transform(train[f]).tolist()
-        val[f] = t.transform(val[f]).tolist()
-        test[f] = t.transform(test[f]).tolist()
-    return train, val, test
-
-
-def normalize(train: dict[str, list], val: dict[str, list], test: dict[str, list]):
-    from sklearn.preprocessing import Normalizer
-
-    norm = Normalizer()
-    return apply_transform(train, val, test, norm)
-
-
-def minmax(train: dict[str, list], val: dict[str, list], test: dict[str, list]):
-    from sklearn.preprocessing import MinMaxScaler
-
-    scaler = MinMaxScaler()
-    return apply_transform(train, val, test, scaler)
-
-
-def standardize(train: dict[str, list], val: dict[str, list], test: dict[str, list]):
-    from sklearn.preprocessing import StandardScaler
-
-    scaler = StandardScaler()
-    return apply_transform(train, val, test, scaler)
-
-
-def data_augmentation(train):
-    df_train = pd.DataFrame.from_dict(train)
-    df_train_last = df_train.applymap(lambda x: x[-1])
-
-    def power(x):
-        c = 0
-        for i, v in enumerate(x[2:], 1):
-            c += i * v
-        return c
-
-    df_train_last["powerlabel"] = df_train_last.apply(power, axis=1).astype(int)
-    from imblearn.over_sampling import RandomOverSampler
-
-    sampler = RandomOverSampler()
-    # df_train_last['powerlabel'].hist(figsize=(5,5))
-    # plt.savefig('results/powerlabel.png')
-
-    df_train_resampled, df_y_resampled = sampler.fit_resample(
-        df_train,
-        df_train_last["powerlabel"],
-    )
-    # df_y_resampled.hist(figsize=(5,5))
-    # plt.savefig('results/resampled.png')
-    return df_train_resampled.to_dict("list")
 
 
 class REDD_multilabel(pl.LightningDataModule):
@@ -233,43 +144,16 @@ class REDD_multilabel(pl.LightningDataModule):
         df_train_last.hist(figsize=(10, 10))
         plt.savefig("results/power_label.png")
 
-    def prepare_data_(self) -> None:
-        folder = get_project_root().joinpath(".temp").as_posix()
-        with disk_buffer(
-            func=dataset_by_house,
-            keys=str(self.config.house_no),
-            folder=folder,
-        ) as bf_dataset_by_house:
-            train, val, test = bf_dataset_by_house(self.config.house_no, self.data_root)
-
-        selected_channels = [
-            appliances[f"house_{self.config.house_no}"][app] for app in self.config.appliances
-        ]
-        transform = transforms.Compose(
-            [
-                MinMax(train, ["mains_1", "mains_2"]),
-                # ApplyPowerLabel(),
-                NumpyToTensor(),
-            ],
-        )
-        self.train_set = MultilabelDataset(
-            train,
-            selected_channels,
-            transform=transform,
-        )
-        self.val_set = MultilabelDataset(val, selected_channels, transform=transform)
-        self.test_set = MultilabelDataset(test, selected_channels, transform=transform)
-        self.nclass = len(train) - 2
-
     def prepare_data(self):
         folder = get_project_root().joinpath(".temp").as_posix()
 
         selected_channels = [
             appliances[f"house_{self.config.house_no}"][app] for app in self.config.appliances
         ]
+        chs = sorted([s_ch for s_chs in selected_channels for s_ch in s_chs])
         with disk_buffer(
             func=get_dataset,
-            keys=str(self.config.house_no) + "redd_ml_s2p",
+            keys=str(self.config.house_no) + f"_redd_ml_s2p_{'_'.join(map(str,chs))}",
             folder=folder,
         ) as bf_get_dataset:
             train, val, test = bf_get_dataset(
@@ -278,12 +162,21 @@ class REDD_multilabel(pl.LightningDataModule):
                 channels=[s_ch for s_chs in selected_channels for s_ch in s_chs],
             )
 
-        transform = transforms.Compose(
-            [MinMax(train, ["mains_1", "mains_2"]), ApplyPowerLabel(), NumpyToTensor()],
-        )
+        if self.config.combine_mains:
+            train['mains_comb'] = train[['mains_1','mains_2']].sum(axis=1)
+            val['mains_comb'] = val[['mains_1','mains_2']].sum(axis=1)
+            test['mains_comb'] = test[['mains_1','mains_2']].sum(axis=1)
+            transform = transforms.Compose(
+                [MinMax(train, ['mains_comb']), NumpyToTensor()] 
+            )
+        else:
+            transform = transforms.Compose(
+                [MinMax(train, ["mains_1", "mains_2"]), NumpyToTensor()],
+            )
         self.train_set = Seq2PointMultilabelDataset(
             train,
             selected_channels,
+            combine_mains=self.config.combine_mains,
             win_size=self.config.win_size,
             stride=self.config.stride,
             transform=transform,
@@ -291,6 +184,7 @@ class REDD_multilabel(pl.LightningDataModule):
         self.val_set = Seq2PointMultilabelDataset(
             val,
             selected_channels,
+            combine_mains=self.config.combine_mains,
             win_size=self.config.win_size,
             stride=self.config.stride,
             transform=transform,
@@ -298,6 +192,7 @@ class REDD_multilabel(pl.LightningDataModule):
         self.test_set = Seq2PointMultilabelDataset(
             test,
             selected_channels,
+            combine_mains=self.config.combine_mains,
             win_size=self.config.win_size,
             stride=self.config.stride,
             transform=transform,
@@ -336,7 +231,9 @@ class REDD_multilabel(pl.LightningDataModule):
         )
 
     def train_dataloader(self) -> DataLoader:
-        sampler = ImbalancedDatasetSampler(self.train_set)
+        sampler = None
+        if self.config.imbalance_sampler:
+            sampler = ImbalancedDatasetSampler(self.train_set)
         return self._to_dataloader(
             self.train_set,
             True,
@@ -371,7 +268,7 @@ def test_redd():
     from src.config_options import OptionManager
 
     opt = OptionManager()
-    args = opt.args
+    args = opt.replace_params({'datasetConfig': 'REDD_multilabel'})
     p = Profiler()
     with p:
         ds = REDD_multilabel(args)

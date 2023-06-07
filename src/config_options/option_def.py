@@ -106,10 +106,15 @@ class groups_helper:
 class ModelGroups(groups_helper):
     groups = {
         "BasicV2": ModelConfig_BasicV2,
+        "BasicV2_1D": ModelConfig_BasicV2,
         "BitcnNILM": ModelConfig_BitcnNILM,
         "BasicV3_Pool": ModelConfig_BasicV3_Pool,
         "TSNet": ModelConfig_TSNet,
         "RF": ModelConfig_RF,
+        "KNC": ModelConfig_KNC,
+        "MLkNN": ModelConfig_MLkNN,
+        "LSTM_AE": ModelConfig_LSTM_AE,
+        "CNN_LSTM": ModelConfig_CNN_LSTM,
     }
 
     def __init__(self) -> None:
@@ -120,7 +125,8 @@ class DatasetGroups(groups_helper):
     groups = {
         "REDD": DatasetConfig_REDD,
         "REDD_Bitcn": DatasetConfig_REDD_Bitcn,
-        "REDD_multilabel": DatasetConfig_REDD,
+        "REDD_multilabel": DatasetConfig_REDD_multilabel,
+        "REDD_ML_multihouse": DatasetConfig_REDD_ML_multihouse
     }
 
     def __init__(self) -> None:

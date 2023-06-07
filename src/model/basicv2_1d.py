@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 
 def conv1x1(in_planes, out_planes, stride=1):
     """1x1 convolution"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
+    return nn.Conv1d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
-    return nn.Conv2d(
+    return nn.Conv1d(
         in_planes,
         out_planes,
         kernel_size=3,
@@ -35,7 +35,7 @@ def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     )
 
 
-class FCN_Block2d(nn.Module):
+class FCN_Block1d(nn.Module):
     def __init__(
         self,
         inplane: int,
@@ -48,9 +48,9 @@ class FCN_Block2d(nn.Module):
     ) -> None:
         super().__init__()
         layers = []
-        layers += [nn.Conv2d(inplane, outplane, kernel, stride, padding, bias=bias)]
+        layers += [nn.Conv1d(inplane, outplane, kernel, stride, padding, bias=bias)]
         if batchnorm:
-            layers += [nn.BatchNorm2d(outplane)]
+            layers += [nn.BatchNorm1d(outplane)]
         layers += [nn.ReLU(inplace=True)]
         self.fcnblock = nn.Sequential(*layers)
 
@@ -77,7 +77,7 @@ class FCN(nn.Module):
                 inplane = chan_list[i - 1]
 
             layers += [
-                FCN_Block2d(
+                FCN_Block1d(
                     inplane=inplane,
                     outplane=chan_list[i],
                     kernel=ker_list[i],
@@ -97,7 +97,7 @@ class FCN(nn.Module):
         return x
 
 
-class BasicV2(LightningBaseModule):
+class BasicV2_1D(LightningBaseModule):
     def __init__(self, args: MyProgramArgs) -> None:
         super().__init__(args)
         self.args = args
@@ -105,7 +105,7 @@ class BasicV2(LightningBaseModule):
         chan_list = [config.chan_1, config.chan_2, config.chan_3]
         ker_list = [config.ker_1, config.ker_2, config.ker_3]
         stride_list = [config.stride_1, config.stride_2, config.stride_3]
-        padding_list = [get_padding_one_more_or_same(k) for k in ker_list]
+        padding_list = [get_padding_one_more_or_same(k, num_dim=1) for k in ker_list]
         logger.debug(
             f"chan_list {chan_list}\n"
             f"ker_list {ker_list}\n"
@@ -119,7 +119,7 @@ class BasicV2(LightningBaseModule):
             padding_list=padding_list,
             stride_list=stride_list,
         )
-        self.pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.pool = nn.AdaptiveAvgPool1d(1)
         self.classifier = nn.Sequential(
             nn.Flatten(1),
             nn.Dropout(config.dropout),
@@ -140,7 +140,7 @@ class BasicV2(LightningBaseModule):
 
     def forward(self, batch):
         x = batch["input"]
-        x = rearrange(x, "b (v t)  -> b 1 v t", v=60)
+        x = rearrange(x, "b t f -> b f t")
         x = self.fcn(x)
         x = self.pool(x)
         x = self.classifier(x)

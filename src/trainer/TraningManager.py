@@ -89,12 +89,13 @@ def trainable(config: dict, debug=False):
         if "nas_params" in locals():
             results.nas_params = json.dumps(nas_params)
         if args.nasOption.enable:
-            results.nas_params = json.dumps(
-                {
-                    "params": count_parameters(model, trainable_only=False),
-                    "trainable_params": count_parameters(model, trainable_only=True),
-                },
-            )
+            if hasattr(model, 'parameters'):
+                results.nas_params = json.dumps(
+                    {
+                        "params": count_parameters(model, trainable_only=False),
+                        "trainable_params": count_parameters(model, trainable_only=True),
+                    },
+                )
         persistence = PersistenceFactory(
             db_name=args.systemOption.db_name,
             db_dir=args.systemOption.db_dir,
@@ -109,5 +110,7 @@ def trainable(config: dict, debug=False):
 
     return {
         "val_acc": results.val_metrics.acc,
+        "val_accmacro": results.val_metrics.accmacro,
         "val_f1macro": results.val_metrics.f1macro,
+        "flops": results.flops,
     }

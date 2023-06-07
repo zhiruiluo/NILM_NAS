@@ -3,10 +3,10 @@ from __future__ import annotations
 import os
 import sys
 
+sys.path.append(".")
 from src.config_options import OptionManager
 from src.trainer.TraningManager import trainable
 
-sys.path.append(".")
 
 
 def launch_jobs(config):

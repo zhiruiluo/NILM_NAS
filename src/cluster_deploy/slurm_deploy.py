@@ -10,7 +10,10 @@ from typing import Callable
 
 from simple_parsing import Serializable, parse
 
-template_file = "src/cluster_deploy/sbatch_template.sh"
+template_files = {
+        "ray_file": "src/cluster_deploy/sbatch_template.sh",
+        "dask_file": "src/cluster_deploy/dask_template.sh",
+    }
 
 
 @dataclass
@@ -52,9 +55,10 @@ class SlurmConfig(Serializable):
 
 
 class SlurmDeploy:
-    def __init__(self, func, config) -> None:
+    def __init__(self, func, config, template_file) -> None:
         self.args = self._setup_args(config)
         self.func = func
+        self.template_file = template_file
 
     def _setup_args(self, config: SlurmConfig) -> SlurmConfig:
         args: SlurmConfig = parse(SlurmConfig, default=config)
@@ -121,7 +125,7 @@ class SlurmDeploy:
     def _modify_template(self):
         args = self.args
         # ===== Modified the template script =====
-        with open(template_file) as f:
+        with open(self.template_file) as f:
             text = f.read()
         text = text.replace("{{JOB_NAME}}", args.job_name)
         text = text.replace("{{JOB_DIR}}", str(args.slurm_path))
@@ -196,7 +200,36 @@ def slurm_launch(
                 command_suffix=command_suffix,
                 log_dir=log_dir,
             )
-            deployment = SlurmDeploy(func, config=conf)
+            deployment = SlurmDeploy(func, config=conf, template_file=template_files["ray_file"])
+            return deployment.run()
+
+        return wrapper
+
+    return decorator
+
+def dask_launch(
+    exp_name,
+    num_nodes,
+    num_gpus,
+    partition,
+    node_list="",
+    load_env="",
+    log_dir="logging",
+    command_suffix="",
+):
+    def decorator(func: Callable):
+        def wrapper(*args, **kwargs):
+            conf = SlurmConfig(
+                exp_name=exp_name,
+                num_nodes=num_nodes,
+                num_gpus=num_gpus,
+                partition=partition,
+                node_list=node_list,
+                load_env=load_env,
+                command_suffix=command_suffix,
+                log_dir=log_dir,
+            )
+            deployment = SlurmDeploy(func, config=conf, template_file=template_files["dask_file"])
             return deployment.run()
 
         return wrapper

@@ -22,5 +22,6 @@ class RF(SklearnBaseModule):
     def get_skmodel(self):
         return self.model
 
-    # def on_reshape(self, x_all):
-    #     return rearrange(x_all, "n t f -> n (t f)")
+    def on_reshape(self, x_all):
+        shape = x_all.shape
+        return x_all.reshape(shape[0],-1)

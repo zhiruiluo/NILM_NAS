@@ -12,6 +12,7 @@ from src.base_module.base_lightning import LightningBaseModule
 from src.config_options.model_configs import ModelConfig_BasicV2
 from src.config_options.option_def import MyProgramArgs
 from src.utilts import get_padding_one_more_or_same
+from src.model.multilabel_head.multilabel_linear_focal import MultilabelLinearFocal
 
 logger = logging.getLogger(__name__)
 
@@ -119,15 +120,18 @@ class BasicV2(LightningBaseModule):
             padding_list=padding_list,
             stride_list=stride_list,
         )
-        self.pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.classifier = nn.Sequential(
+        self.pool = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),
             nn.Flatten(1),
-            nn.Dropout(config.dropout),
-            spectral_norm(nn.Linear(self.fcn.out_channel, config.nclass)),
         )
+        
         if args.modelBaseConfig.label_mode == "multilabel":
-            self.loss_fn = nn.BCEWithLogitsLoss()
+            self.classifier = MultilabelLinearFocal(config.in_channels, config.nclass, config.dropout)
         elif args.modelBaseConfig.label_mode == "multiclass":
+            self.classifier = nn.Sequential(
+                nn.Dropout(config.dropout),
+                spectral_norm(nn.Linear(self.fcn.out_channel, config.nclass)),
+            )
             self.loss_fn = nn.CrossEntropyLoss(
                 label_smoothing=args.modelBaseConfig.label_smoothing,
             )
@@ -145,15 +149,14 @@ class BasicV2(LightningBaseModule):
         x = self.pool(x)
         x = self.classifier(x)
 
-        # if self.training:
         predictions = {}
         if self.args.modelBaseConfig.label_mode == "multilabel":
-            predictions["output"] = torch.round(F.sigmoid(x))
-            predictions["pred"] = torch.round(F.sigmoid(x))
+            batch['feature'] = x
+            predictions = self.classifier(batch)
         else:
             predictions["output"] = torch.max(x, dim=1)[1]
             predictions["pred"] = x
-        predictions["loss"] = self.loss(predictions, batch)
+            predictions["loss"] = self.loss(predictions, batch)
         return predictions
 
 

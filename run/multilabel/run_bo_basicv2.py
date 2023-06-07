@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+sys.path.append(".")
 
 import ray
 from ray import tune
@@ -16,8 +17,6 @@ from src.config_options.options import OptionManager
 from src.database.Persistence import PersistenceFactory
 from src.project_logging import LoggerManager
 from src.trainer.TraningManager import trainable
-
-sys.path.append(".")
 
 
 logger = logging.getLogger(__name__)
@@ -97,7 +96,7 @@ def loop(args: MyProgramArgs):
 
 @slurm_launch(
     exp_name="BO_BV2",
-    num_nodes=1,
+    num_nodes=4,
     num_gpus=2,
     partition="epscor",
     load_env="conda activate p39c116\n"

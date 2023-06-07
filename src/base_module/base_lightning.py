@@ -81,10 +81,10 @@ class LightningBaseModule(pl.LightningModule):
     def forward(self, batch):
         return batch
 
-    def metrics(self, phase, pred, label, loss):
+    def metrics(self, phase, pred, label, loss=None):
         phase_metrics = self.all_metrics[phase + "_metrics"]
         for mk, metric in phase_metrics.items():
-            if mk == "loss":
+            if mk == "loss" and loss is not None:
                 metric.update(loss)
             elif mk == "acc":
                 metric(pred, label)
@@ -192,7 +192,7 @@ class LightningBaseModule(pl.LightningModule):
         target = batch["target"]
         predictions = self.forward(batch)
         output = predictions["output"]
-        loss = predictions["loss"]
+        loss = predictions.get('loss', None)
         self.metrics(phase, output, target, loss)
         return
 
@@ -225,22 +225,23 @@ class LightningTrainerFactory:
 
     def _configure_callbacks(self):
         callbacks = []
-        monitor = "val_f1macro"
+        monitor = "val_loss"
+        mode = 'min'
         # monitor = 'val_acc_epoch'
 
         earlystop = EarlyStopping(
             monitor=monitor,
             patience=self.args.modelBaseConfig.patience,
-            mode="max",
+            mode=mode,
         )
         callbacks.append(earlystop)
 
         ckp_cb = ModelCheckpoint(
             dirpath=self.args.systemOption.task_dir,
-            filename="bestCKP" + "-{epoch:02d}-{val_f1macro:.3f}",
+            filename="bestCKP" + "-{epoch:02d}-" + "{" + monitor + ":.3f}",
             monitor=monitor,
             save_top_k=1,
-            mode="max",
+            mode=mode,
         )
         callbacks.append(ckp_cb)
 

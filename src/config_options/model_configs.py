@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 
 from simple_parsing import Serializable
+from typing import Literal
 
 
 @dataclasses.dataclass
@@ -97,16 +98,30 @@ class ModelConfig_BitcnNILM(LightningModel):
     in_chan: int = 1
     out_chan: int = 128
     ker_size: int = 3
-
+    head_type: Literal['Focal', 'CE', 'SBCE', 'Paper', 'Mask'] = 'Focal'
 
 @dataclasses.dataclass
 class ModelConfig_TSNet(LightningModel):
     nclass: int = 3
     n_phases: int = 3
+    n_ops: int = 3
     bit_string: str = "010100011101001010001110100101000111010"
     in_channels: int = 1
     out_channels: int = 32
     dropout: float = 0.5
+    head_type: Literal['Focal', 'CE', 'SBCE'] = 'Focal'
+
+
+@dataclasses.dataclass
+class ModelConfig_TSNetRepeat(LightningModel):
+    nclass: int = 3
+    n_phases: int = 3
+    n_ops: int = 3
+    bit_string: str = "010100011101001010001110100101000111010"
+    in_channels: int = 1
+    out_channels: int = 32
+    dropout: float = 0.5
+    head_type: Literal['Focal', 'CE', 'SBCE'] = 'Focal'
 
 
 @dataclasses.dataclass
@@ -117,3 +132,34 @@ class ModelConfig_RF(SklearnModel, Serializable):
     min_samples_split: int = 2
     min_samples_leaf: int = 1
     nclass: int = 2
+
+
+@dataclasses.dataclass
+class ModelConfig_KNC(SklearnModel, Serializable):
+    n_neighbors: int = 5
+    weights: str = 'uniform'
+    algorithm: str = 'auto'
+    leaf_size: int = 30
+    nclass: int = 2
+
+
+@dataclasses.dataclass
+class ModelConfig_MLkNN(SklearnModel, Serializable):
+    k: int = 10
+    s: float = 1.0
+    ignore_first_neighbours: int= 0 
+
+
+@dataclasses.dataclass
+class ModelConfig_LSTM_AE(LightningModel):
+    in_chan: int = 1
+    nclass: int = 2
+    num_layers: int = 1
+    hidden_size: int = 128
+    
+    
+@dataclasses.dataclass
+class ModelConfig_CNN_LSTM(LightningModel):
+    in_chan: int = 1
+    nclass: int = 2
+    out_features: int = 32

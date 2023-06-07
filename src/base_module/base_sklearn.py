@@ -23,16 +23,18 @@ class SklearnBaseModule(BaseEstimator):
         return
 
     def on_train(self, x_all, y_all):
-        logger.info("[on_train]")
+        logger.info(f"[on_train] {x_all.shape}")
         self.get_skmodel().fit(x_all, y_all)
         y_hat = self.get_skmodel().predict(x_all)
         return y_hat
 
     def on_val(self, x_all, y_all):
+        logger.info(f"[on_val] {x_all.shape}")
         y_hat = self.get_skmodel().predict(x_all)
         return y_hat
 
     def on_test(self, x_all, y_all):
+        logger.info(f"[on_test] {x_all.shape}")
         y_hat = self.get_skmodel().predict(x_all)
         return y_hat
 

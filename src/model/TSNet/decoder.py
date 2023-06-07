@@ -120,7 +120,7 @@ class ChannelBasedDecoder(Decoder):
             for _ in range(repeat):
                 layers.append(phase)
             layers.append(
-                nn.MaxPool2d(kernel_size=2, stride=2),
+                nn.MaxPool1d(kernel_size=2, stride=2),
             )  # TODO: Generalize this, or consider a new genome.
 
         layers.append(last_phase)
@@ -142,7 +142,7 @@ class ChannelBasedDecoder(Decoder):
 
 def get_node_constructor(genotype) -> Callable[[int, int, bool], nn.Module]:
     from .genotypes import OPS_Encoding
-    from .operations import OPS
+    from .operations_1d import OPS
 
     op_lambda = OPS[OPS_Encoding[genotype]]
     return op_lambda
@@ -168,7 +168,7 @@ class ConnAndOpsPhase(nn.Module):
         self.channel_flag = (
             in_channels != out_channels
         )  # Flag to tell us if we need to increase channel size.
-        self.first_conv = nn.Conv2d(
+        self.first_conv = nn.Conv1d(
             in_channels,
             out_channels,
             kernel_size=1 if idx != 0 else 3,
@@ -198,7 +198,7 @@ class ConnAndOpsPhase(nn.Module):
         conv1x1s = [Identity()] + [Identity() for _ in range(max(self.dependency_graph.keys()))]
         for node_idx, dependencies in self.dependency_graph.items():
             if len(dependencies) > 1:
-                conv1x1s[node_idx] = nn.Conv2d(
+                conv1x1s[node_idx] = nn.Conv1d(
                     len(dependencies) * out_channels,
                     out_channels,
                     kernel_size=1,
@@ -206,7 +206,7 @@ class ConnAndOpsPhase(nn.Module):
                 )
 
         self.processors = nn.ModuleList(conv1x1s)
-        self.out = nn.Sequential(nn.BatchNorm2d(out_channels), nn.ReLU(inplace=True))
+        self.out = nn.Sequential(nn.BatchNorm1d(out_channels), nn.ReLU(inplace=True))
 
     @staticmethod
     def build_dependency_graph(gene):
@@ -307,6 +307,7 @@ def test_decoder():
         [[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]],
         [[[0], [1, 0], [1]], [[0, 0, 0], [1, 1, 1], [0, 1, 0]]],
     ]
-    model = ConnAndOpsDecoder(genome, [(3, 128), (128, 128), (128, 128)]).get_model()
+    model = ConnAndOpsDecoder(genome, [(2, 128), (128, 128), (128, 128)]).get_model()
     print(model)
-    print(model(torch.randn(1, 3, 32, 32)).shape)
+    # print(model(torch.randn(1, 1, 32, 32)).shape)
+    print(model(torch.randn(1, 2, 600)).shape)

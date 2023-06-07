@@ -4,6 +4,19 @@ import dataclasses
 
 from simple_parsing import Serializable
 
+@dataclasses.dataclass
+class RayOptions(Serializable):
+    backend: str = "ray_tune"
+    num_gpus: int = 1
+    num_cpus: int = 8
+
+
+@dataclasses.dataclass
+class DaskOptions(Serializable):
+    backend: str = 'dask'
+    num_gpus: int = 1
+    num_cpus: int = 8
+    
 
 @dataclasses.dataclass
 class BO(Serializable):
@@ -22,3 +35,11 @@ class NASOption(Serializable):
     num_samples: int = 100
     num_gpus: int = 1
     num_cpus: int = 8
+
+
+@dataclasses.dataclass
+class Genetic_NSGA2(Serializable):
+    n_gen: int = 10
+    n_eval: int = 150
+    pop_size: int = 20
+    seed: int = 1

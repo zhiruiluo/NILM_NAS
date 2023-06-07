@@ -23,6 +23,7 @@ class BaseEstimator:
         if label_mode == "multilabel":
             multilabel = True
             metric_keys = [
+                "acc",
                 "acc_perclass",
                 "accmacro",
                 "f1_perclass",
@@ -65,7 +66,7 @@ class BaseEstimator:
         metrics = {}
         phase_metrics = self.all_metrics[phase + "_metrics"]
         for mk, metric in phase_metrics.items():
-            metrics[mk] = metric.compute()
+            metrics[mk] = metric.compute().cpu().tolist()
             metric.reset()
 
         self.log_epoch_end(phase, metrics)
@@ -79,19 +80,17 @@ class BaseEstimator:
 
     def log_epoch_end(self, phase, metrics):
         for k, v in metrics.items():
-            if isinstance(v, torch.Tensor):
-                if k == "confmx":
-                    value = v.type(torch.long).cpu().numpy().tolist()
-                    log_str = pretty_print_confmx_pandas(v)
-                else:
-                    value = v.item()
-                    log_str = str(value)
+            # if isinstance(v, torch.Tensor):
+            if k == "confmx":
+                self.metrics_log[f"{phase}_{k}"] = v
+                logger.info(f"[{phase}_{k}]\n{v}")
+                continue
+            elif isinstance(v, list):
+                for i, vi in enumerate(v):
+                    self.metrics_log[f"{phase}_{k}_{i}"] = vi
             else:
-                value = v
-                log_str = str(v)
-
-            self.metrics_log[f"{phase}_{k}"] = value
-            logger.info(f"[{phase}_{k}] {log_str}")
+                self.metrics_log[f"{phase}_{k}"] = v
+            logger.info(f"[{phase}_{k}] {v}")
 
     def _dataloader_to_numpy(self, dl):
         batch = next(iter(dl))

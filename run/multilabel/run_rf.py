@@ -6,7 +6,6 @@ sys.path.append(".")
 import functools
 import logging
 import os
-import sys
 
 import ray
 from ray import tune
@@ -18,8 +17,6 @@ from src.config_options.options import OptionManager, replace_consistant
 from src.database.Persistence import PersistenceFactory
 from src.project_logging import LoggerManager
 from src.trainer.TraningManager import trainable
-
-sys.path.append(".")
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +34,7 @@ def loop(args: MyProgramArgs):
     mode = "max"
 
     space = {
-        # "datasetConfig.appliance": tune.grid_search(['fridge','dishwasher','washingmachine']),
+        "datasetConfig.combine_mains": tune.grid_search([True, False]),
         "modelConfig": {
             "n_estimators": tune.grid_search([100]),
             "max_depth": tune.grid_search([None]),  # [10,50,90,None]
@@ -97,8 +94,8 @@ def main():
             "nasOption.search_strategy": "random",
             "nasOption.backend": "no_report",
             "nasOption.num_samples": 1,
-            # "datasetConfig.win_size": 600,
-            # "datasetConfig.stride": 1,
+            "datasetConfig.win_size": 300,
+            "datasetConfig.stride": 60,
             "modelBaseConfig.label_mode": "multilabel",
             # "trainerOption.limit_train_batches": 0.1,
             # "trainerOption.limit_val_batches": 0.1,

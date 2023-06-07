@@ -11,7 +11,7 @@ from dask_jobqueue import SLURMCluster
 from distributed import Client
 from pymoo.algorithms.soo.nonconvex.ga import GA
 from pymoo.config import Config
-from pymoo.core.problem import DaskParallelization, Problem
+from pymoo.core.problem import DaskParallelization, Problem, ElementwiseProblem
 from pymoo.optimize import minimize
 
 Config.warnings["not_compiled"] = False
