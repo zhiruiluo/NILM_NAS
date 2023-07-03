@@ -56,6 +56,13 @@ def convert(bit_string, n_phases=3) -> list:
 
     return genome
 
+def convert_repeat(bit_string, n_phases=3) -> list:
+    # bit_string = np.repeat(bit_string, n_phases)
+    genome = []
+    for i in range(n_phases):
+        genome.append(bit_string.tolist())
+    return genome
+    
 
 def test_ops_decode():
     bit_string = np.array([0, 0, 0, 1, 1, 1, 0, 0, 1])

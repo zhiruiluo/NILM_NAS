@@ -1,0 +1,1 @@
+select count(data_params), data_params, model_params, val_acc, max(val_f1macro), test_acc, test_f1macro from results  group by data_params ;

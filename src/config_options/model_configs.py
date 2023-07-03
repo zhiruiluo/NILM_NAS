@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 
 from simple_parsing import Serializable
-from typing import Literal
+from typing import Literal, Union
 
 
 @dataclasses.dataclass
@@ -98,7 +98,7 @@ class ModelConfig_BitcnNILM(LightningModel):
     in_chan: int = 1
     out_chan: int = 128
     ker_size: int = 3
-    head_type: Literal['Focal', 'CE', 'SBCE', 'Paper', 'Mask'] = 'Focal'
+    head_type: str = 'Focal'
 
 @dataclasses.dataclass
 class ModelConfig_TSNet(LightningModel):
@@ -107,9 +107,9 @@ class ModelConfig_TSNet(LightningModel):
     n_ops: int = 3
     bit_string: str = "010100011101001010001110100101000111010"
     in_channels: int = 1
-    out_channels: int = 32
+    out_channels: int | list = 32
     dropout: float = 0.5
-    head_type: Literal['Focal', 'CE', 'SBCE'] = 'Focal'
+    head_type: str = 'Focal'
 
 
 @dataclasses.dataclass
@@ -119,9 +119,9 @@ class ModelConfig_TSNetRepeat(LightningModel):
     n_ops: int = 3
     bit_string: str = "010100011101001010001110100101000111010"
     in_channels: int = 1
-    out_channels: int = 32
+    out_channels: int | list = 32
     dropout: float = 0.5
-    head_type: Literal['Focal', 'CE', 'SBCE'] = 'Focal'
+    head_type: str = 'Focal'
 
 
 @dataclasses.dataclass
@@ -151,15 +151,25 @@ class ModelConfig_MLkNN(SklearnModel, Serializable):
 
 
 @dataclasses.dataclass
+class ModelConfig_MLSVM(SklearnModel, Serializable):
+    C: float = 1.0
+    kernel: str = 'rbf'
+    degree: int = 3 # with kernel "poly"
+    gamma: Union[float, str] = 'scale' # with 'rbf', 'poly' and 'sigmoid'
+    max_iter: int = 200
+
+
+@dataclasses.dataclass
 class ModelConfig_LSTM_AE(LightningModel):
     in_chan: int = 1
     nclass: int = 2
     num_layers: int = 1
     hidden_size: int = 128
-    
+    head_type: str = 'Focal'
     
 @dataclasses.dataclass
 class ModelConfig_CNN_LSTM(LightningModel):
     in_chan: int = 1
     nclass: int = 2
     out_features: int = 32
+    head_type: str = 'Focal'

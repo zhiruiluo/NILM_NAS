@@ -6,7 +6,7 @@ from src.base_module.base_lightning import LightningBaseModule
 from src.config_options.option_def import MyProgramArgs
 from src.config_options.model_configs import ModelConfig_LSTM_AE
 from einops import rearrange
-from .multilabel_head import MultilabelLinearFocal, SharedBCELinear
+from .multilabel_head import *
 
 import logging
 logger = logging.getLogger(__name__)
@@ -78,7 +78,21 @@ class LSTM_AE(LightningBaseModule):
         #     nn.Dropout(0.5),
         #     nn.Linear(in_features=hidden_size, out_features=config.nclass)
         # )
-        self.fc = MultilabelLinearFocal(hidden_size, config.nclass)
+        if args.modelBaseConfig.label_mode == "multilabel":
+            if config.head_type == 'CE':
+                self.linear = MultilabelLinear(hidden_size, config.nclass)
+            elif config.head_type == 'Focal':
+                self.linear = MultilabelLinearFocal(hidden_size, config.nclass)
+            elif config.head_type == 'SBCE':
+                self.linear = SharedBCELinear(hidden_size, config.nclass)
+            elif config.head_type == 'Mask':
+                self.linear = MultilabelLinearMask(hidden_size, config.nclass)
+            elif config.head_type == 'ASL':
+                self.linear = MultilabelLinearASL(hidden_size, config.nclass)
+            elif config.head_type == 'MaskFocal':
+                self.lienar = MultilabelLinearMaskFocal(hidden_size, config.nclass)
+            else:
+                raise ValueError(f'invalid head type: {config.head_type}')
         
     def reconstruction_loss(self, input, target):
         return F.mse_loss(input, target)
@@ -104,7 +118,7 @@ class LSTM_AE(LightningBaseModule):
         recon_loss = self.reconstruction_loss(reconstruct_output, x)
         batch['feature'] = e_hidden[0][-1:].squeeze(0)
         # pred = F.sigmoid(self.fc(e_hidden[0][-1].squeeze(0)))
-        predictions = self.fc(batch)
+        predictions = self.linear(batch)
         # cls_loss = preds['loss']
         predictions['loss'] = predictions['loss'] + 0.1*recon_loss
         

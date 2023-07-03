@@ -29,6 +29,9 @@ class TrainerOption(Serializable):
     limit_train_batches: float = 1.0
     limit_val_batches: float = 1.0
     limit_test_batches: float = 1.0
+    verbose: bool = True
+    monitor: str = 'val_f1macro'
+    mode: str = 'max'
 
 
 @dataclasses.dataclass
@@ -113,6 +116,7 @@ class ModelGroups(groups_helper):
         "RF": ModelConfig_RF,
         "KNC": ModelConfig_KNC,
         "MLkNN": ModelConfig_MLkNN,
+        "MLSVM": ModelConfig_MLSVM,
         "LSTM_AE": ModelConfig_LSTM_AE,
         "CNN_LSTM": ModelConfig_CNN_LSTM,
     }
@@ -126,7 +130,8 @@ class DatasetGroups(groups_helper):
         "REDD": DatasetConfig_REDD,
         "REDD_Bitcn": DatasetConfig_REDD_Bitcn,
         "REDD_multilabel": DatasetConfig_REDD_multilabel,
-        "REDD_ML_multihouse": DatasetConfig_REDD_ML_multihouse
+        "REDD_ML_multihouse": DatasetConfig_REDD_ML_multihouse,
+        "UKDALE_multilabel": DatasetConfig_UKDALE_multilabel,
     }
 
     def __init__(self) -> None:

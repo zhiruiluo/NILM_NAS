@@ -12,14 +12,18 @@ from typing import List
 from src.config_options.dataset_configs import DatasetConfig_REDD_ML_multihouse
 from src.config_options.option_def import MyProgramArgs
 from src.context import get_project_root
+from sklearn.model_selection import train_test_split
 
 from ..sampler import ImbalancedDatasetSampler
 from .custom_transform import ApplyPowerLabel, MinMax, NumpyToTensor
 from .redd_load import get_dataset
 
+import logging
+logger = logging.getLogger(__name__)
+
 data_preprocessing = {
     "appliances": {
-        "on_treshold": {
+        "on_threshold": {
             "kettle": 200,
             "microwave": 200,
             "refrigerator": 50,
@@ -87,6 +91,24 @@ appliances = {
     },
 }
 
+def get_target(df, threshold=20):
+    target = df.drop(["mains_1", "mains_2","mains_comb"],axis=1)
+    target = target.to_numpy()
+    mask = ~np.isnan(target)
+    target[np.isnan(target)] = 0
+    target = np.where(target < threshold, 0, 1)
+    
+
+def apply_threshold(df_target: pd.DataFrame) -> pd.DataFrame:
+    for col_k in df_target.columns:
+        n = col_k
+        if col_k == 'dishwaser':
+            n = 'dishwasher'
+        app_thd = data_preprocessing["appliances"]["on_threshold"][n]
+        cond = df_target[col_k] < app_thd
+        df_target[col_k] = df_target[col_k].where(cond, 1).mask(cond, 0)
+
+    return df_target
 
 class Seq2PointMultilabelDataset(Dataset):
     def __init__(
@@ -95,7 +117,6 @@ class Seq2PointMultilabelDataset(Dataset):
         combine_mains: bool = False,
         win_size: int = 300,
         stride: int = 1,
-        threshold: int = 20,
         transform=None,
     ) -> None:
         self.transform = transform
@@ -106,14 +127,15 @@ class Seq2PointMultilabelDataset(Dataset):
         else:
             input = df_data[['mains_comb']]
             target = df_data.drop(["mains_1", "mains_2","mains_comb"], axis=1)
-        threshold = threshold
         
+        mask = ~pd.isna(target)
+        self.mask = mask.to_numpy()
+        
+        target[pd.isna(target)] = 0
+        target = apply_threshold(target)
+
         self.input = input.to_numpy()
         self.target = target.to_numpy()
-        self.mask = ~np.isnan(self.target)
-        
-        self.target[np.isnan(self.target)] = 0
-        self.target = np.where(self.target< threshold, 0, 1)
 
         self.win_view = sliding_window_view(
             np.arange(self.input.shape[0]),
@@ -164,16 +186,20 @@ class REDD_ML_multihouse(pl.LightningDataModule):
                     appliances[f"house_{house_no}"][app] for app in self.config.appliances
                 ]
                 chs = [s_ch for s_chs in selected_channels for s_ch in s_chs]
+                if phase == 'test':
+                    drop_na_how = 'any'
+                else:
+                    drop_na_how = self.config.drop_na_how
                 with disk_buffer(
                     func=get_dataset,
-                    keys=str(house_no) + f"_redd_ml_multihouse_{'_'.join(map(str,chs))}_{self.config.drop_na_how}",
+                    keys=str(house_no) + f"_redd_ml_multihouse_{'_'.join(map(str,chs))}_{drop_na_how}",
                     folder=folder,
                 ) as bf_get_dataset:
                     df_house = bf_get_dataset(
                         house_no=house_no,
                         data_root=self.data_root,
                         channels=chs,
-                        drop_na_how=self.config.drop_na_how,
+                        drop_na_how=drop_na_how,
                     )
                     l = len(df_house)
                     new_cols = []
@@ -190,11 +216,20 @@ class REDD_ML_multihouse(pl.LightningDataModule):
                         
                     if phase == 'train':
                         train_ratio = 1 - self.config.val_ratio
-                        train.append(df_house[0 : round(train_ratio * l)])
-                        val.append(df_house[round(train_ratio * l) :])
+                        if self.config.val_source == 'train':
+                            val.append(df_house[0 : round(self.config.val_ratio * l)])
+                            train.append(df_house[round(self.config.val_ratio * l) :])
+                        else:
+                            train.append(df_house)
+                        # train.append(df_house[0 : round(train_ratio * l)])
+                        # val.append(df_house[round(train_ratio * l) :])
                     elif phase == 'test':
-                        test.append(df_house)
-
+                        if self.config.val_source == 'test':
+                            val.append(df_house[0: round(self.config.val_ratio * l)])
+                            test.append(df_house[round(self.config.val_ratio * l): ])
+                        else:
+                            test.append(df_house)
+        
         train = pd.concat(train, ignore_index=True)
         val = pd.concat(val, ignore_index=True)
         test = pd.concat(test, ignore_index=True)
@@ -228,6 +263,7 @@ class REDD_ML_multihouse(pl.LightningDataModule):
             stride=self.config.stride,
             transform=transform,
         )
+        logger.info(f"Train set: {len(self.train_set)}, Val set: {len(self.val_set)}, Test set: {len(self.test_set)}")
         self.nclass = len(selected_channels)
 
     def setup(self, stage: str) -> None:
@@ -292,14 +328,24 @@ class REDD_ML_multihouse(pl.LightningDataModule):
             drop_last=False,
         )
 
-
-def test_redd():
+def test_redd_count():
+    from src.config_options import OptionManager
+    opt = OptionManager()
+    args = opt.replace_params({'datasetConfig': 'REDD_ML_multihouse','datasetConfig.stride':10})
+    ds = REDD_ML_multihouse(args)
+    ds.prepare_data()
+    ds.setup("fit")
+    print(len(ds.train_dataloader()))
+    print(len(ds.val_dataloader()))
+    print(len((ds.test_dataloader())))
+    
+def test_redd_trainloader():
     from pyinstrument import Profiler
 
     from src.config_options import OptionManager
 
     opt = OptionManager()
-    args = opt.replace_params({'datasetConfig': 'REDD_ML_multihouse'})
+    args = opt.replace_params({'datasetConfig': 'REDD_ML_multihouse','datasetConfig.train_house_no':[2,3], 'datasetConfig.val_source':'test'})
     p = Profiler()
     with p:
         ds = REDD_ML_multihouse(args)

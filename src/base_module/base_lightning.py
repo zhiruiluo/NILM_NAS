@@ -1,22 +1,20 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
+from pathlib import Path
 
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from ml_toolkit.utils.cuda_status import get_num_gpus
-from pytorch_lightning.callbacks import (
-    EarlyStopping,
-    LearningRateMonitor,
-    ModelCheckpoint,
-    TQDMProgressBar,
-)
+from pytorch_lightning.callbacks import (EarlyStopping, LearningRateMonitor,
+                                         ModelCheckpoint, TQDMProgressBar)
 from pytorch_lightning.loggers import CSVLogger, TensorBoardLogger
-from torch.optim import AdamW
-from torch.optim.lr_scheduler import StepLR
+from torch.optim import SGD, AdamW
+from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 
 from src.base_module.configs import ExpResults
 from src.base_module.metrics_helper import Metrics_Helper, get_metrics
@@ -78,6 +76,8 @@ class LightningBaseModule(pl.LightningModule):
                 get_metrics(metric_keys, nclass, multilabel=multilabel),
             )
 
+        self._stored_confmx = {}
+
     def forward(self, batch):
         return batch
 
@@ -102,23 +102,22 @@ class LightningBaseModule(pl.LightningModule):
         metrics = {}
         phase_metrics = self.all_metrics[phase + "_metrics"]
         for mk, metric in phase_metrics.items():
-            metrics[mk] = metric.compute().cpu().tolist()
+            metrics[mk] = metric.compute().detach().cpu().tolist()
             metric.reset()
         # logger.info(metrics)
         self.log_epoch_end(phase, metrics)
         if phase == "test":
             self.stored_test_confmx = metrics["confmx"]
 
-    def get_test_confmx(self):
-        if self.stored_test_confmx is not None:
-            return self.stored_test_confmx
-        return []
+    def get_all_confmx(self):
+        return self._stored_confmx
 
     def log_epoch_end(self, phase, metrics):
         logger.info(f"Current Epoch: {self.current_epoch}")
         for k, v in metrics.items():
             if k == "confmx":
                 logger.info(f'[{phase}_confmx] \n{metrics["confmx"]}')
+                self._stored_confmx[f'{phase}_confmx'] = json.dumps(v)
                 continue
             if isinstance(v, list):
                 for i, vi in enumerate(v):
@@ -128,15 +127,31 @@ class LightningBaseModule(pl.LightningModule):
             logger.info(f"[{phase}_{k}] {v}")
 
     def configure_optimizers(self):
-        optimizer = AdamW(
-            self.parameters(),
-            lr=self.args.modelBaseConfig.lr,
-            weight_decay=self.args.modelBaseConfig.weight_decay,
-        )
-        scheduler = StepLR(optimizer, step_size=7)
-        if self.args.nasOption.backend == "no_scheduler":
+        if self.args.modelBaseConfig.optimizer == 'AdamW':
+            optimizer = AdamW(
+                self.parameters(),
+                lr=self.args.modelBaseConfig.lr,
+                weight_decay=self.args.modelBaseConfig.weight_decay,
+            )
+        elif self.args.modelBaseConfig.optimizer == 'SGD':
+            optimizer = SGD(
+                self.parameters(),
+                lr=self.args.modelBaseConfig.lr,
+                weight_decay=self.args.modelBaseConfig.weight_decay,
+            )
+        else:
+            raise ValueError('Optimizer is invalid')
+            
+        if self.args.modelBaseConfig.lr_scheduler == 'none':
             return {"optimizer": optimizer}
-        return {"optimizer": optimizer, "lr_scheduler": scheduler}
+        elif self.args.modelBaseConfig.lr_scheduler == 'steplr':
+            scheduler = StepLR(optimizer, step_size=7)
+            return {'optimizer': optimizer, 'lr_scheduler': scheduler}
+        elif self.args.modelBaseConfig.lr_scheduler == 'CosineAnnealingLR':
+            scheduler = CosineAnnealingLR(optimizer, T_max=5)
+            return {'optimizer': optimizer, 'lr_scheduler': scheduler}
+        else:
+            raise ValueError('Learning rate scheduler is invalid')
 
     def get_predict(self, y):
         a, y_hat = torch.max(y, dim=1)
@@ -206,28 +221,27 @@ class LightningTrainerFactory:
         self.args = args
 
     def _get_logger(self, phase: str):
-        name = f"tensorboard_log"
+        name = f"logs"
         version = "{}_{}".format(phase, time.strftime("%m%d-%H%M", time.localtime()))
 
         tb_logger = TensorBoardLogger(
             save_dir=self.args.systemOption.task_dir,
             name=name,
-            version=version,
+            version=version+'_tflog',
         )
 
         csv_logger = CSVLogger(
             save_dir=self.args.systemOption.task_dir,
             name=name,
-            version=version,
+            version=version+'_csvlog',
         )
 
         return [tb_logger, csv_logger]
 
     def _configure_callbacks(self):
         callbacks = []
-        monitor = "val_loss"
-        mode = 'min'
-        # monitor = 'val_acc_epoch'
+        monitor = self.args.trainerOption.monitor
+        mode = self.args.trainerOption.mode
 
         earlystop = EarlyStopping(
             monitor=monitor,
@@ -236,8 +250,10 @@ class LightningTrainerFactory:
         )
         callbacks.append(earlystop)
 
+        ckpt_path = Path(self.args.systemOption.task_dir).joinpath('ckpt')
+        ckpt_path.mkdir(parents=True, exist_ok=True)
         ckp_cb = ModelCheckpoint(
-            dirpath=self.args.systemOption.task_dir,
+            dirpath=ckpt_path,
             filename="bestCKP" + "-{epoch:02d}-" + "{" + monitor + ":.3f}",
             monitor=monitor,
             save_top_k=1,
@@ -245,14 +261,18 @@ class LightningTrainerFactory:
         )
         callbacks.append(ckp_cb)
 
-        pb_cb = TQDMProgressBar(refresh_rate=0.05)
+        if self.args.trainerOption.verbose:
+            pb_cb = TQDMProgressBar(refresh_rate=0.05)
+        else:
+            pb_cb = TQDMProgressBar(refresh_rate=0)
         callbacks.append(pb_cb)
 
         lr_cb = LearningRateMonitor(logging_interval="step")
         callbacks.append(lr_cb)
 
         if self.args.nasOption.enable and self.args.nasOption.backend == "ray_tune":
-            from ray.tune.integration.pytorch_lightning import TuneReportCallback
+            from ray.tune.integration.pytorch_lightning import \
+                TuneReportCallback
 
             logger.info(f"[callbacks] ray_tune backend with TuneReportCallback")
             if self.baseconfig.label_mode == "multilabel":
@@ -325,10 +345,15 @@ class LightningTrainerFactory:
             "accelerator": accelerator,
             "devices": 1,
             "max_epochs": 1,
-            "callbacks": [TQDMProgressBar(refresh_rate=0.05)],
             "limit_val_batches": self.args.trainerOption.limit_val_batches,
             "logger": self._get_logger("val"),
         }
+        
+        if self.args.trainerOption.verbose:
+            params['callbacks'] = [TQDMProgressBar(refresh_rate=0.05)]
+        else:
+            params['callbacks'] = [TQDMProgressBar(refresh_rate=0)]
+        
         logger.info(f"[val_trainer] {params}")
         return pl.Trainer(**params)
 
@@ -338,14 +363,19 @@ class LightningTrainerFactory:
             "accelerator": accelerator,
             "devices": 1,
             "max_epochs": 1,
-            "callbacks": [TQDMProgressBar(refresh_rate=0.05)],
             "limit_test_batches": self.args.trainerOption.limit_test_batches,
             "logger": self._get_logger("test"),
         }
+        
+        if self.args.trainerOption.verbose:
+            params['callbacks'] = [TQDMProgressBar(refresh_rate=0.05)]
+        else:
+            params['callbacks'] = [TQDMProgressBar(refresh_rate=0)]
+        
         logger.info(f"[test_trainer] {params}")
         return pl.Trainer(**params)
 
-    def training_flow(self, model, dataset, no_test: bool = False) -> ExpResults:
+    def training_flow(self, model: LightningBaseModule, dataset, no_test: bool = False) -> ExpResults:
         logger.info("[start training flow]")
 
         flops_profiler = FlopsProfiler(self.args)
@@ -353,7 +383,10 @@ class LightningTrainerFactory:
         flops = None
         for batch in dataset.train_dataloader():
             if isinstance(batch, dict):
-                flops = flops_profiler.get_flops(model, args=[batch])
+                new_batch = {}
+                for k,v in batch.items():
+                    new_batch[k] = v[0:1]
+                flops = flops_profiler.get_flops(model, args=[new_batch])
             break
 
         fit_trainer = self.get_fit_trainer()
@@ -361,6 +394,7 @@ class LightningTrainerFactory:
         fit_trainer.fit(model, datamodule=dataset)
         time_on_fit_end = get_datetime_now_tz()
         fit_results = fit_trainer.logged_metrics
+        fit_results.update(model.get_all_confmx())
 
         ckp_cb = fit_trainer.checkpoint_callback
         earlystop_cb = fit_trainer.early_stopping_callback
@@ -378,6 +412,7 @@ class LightningTrainerFactory:
             datamodule=dataset,
         )
         val_results = val_trainer.logged_metrics
+        val_results.update(model.get_all_confmx())
 
         # test model
         test_trainer = self.get_test_trainer()
@@ -394,6 +429,7 @@ class LightningTrainerFactory:
                 datamodule=dataset,
             )[0]
             time_on_test_end = get_datetime_now_tz()
+            test_results.update(model.get_all_confmx())
 
         # delete check point
         if os.path.isfile(ckp_cb.best_model_path):

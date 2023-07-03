@@ -1,0 +1,36 @@
+_type_: src.config_options.option_def.MyProgramArgs
+datasetConfig:
+  _type_: src.config_options.dataset_configs.DatasetConfig_REDD
+  appliances:
+  - kettle
+  - refrigerator
+  - microwave
+  - dishwasher
+  - washingmachine
+  drop_na_how: any
+  house_no: 1
+  imbalance_sampler: false
+  index_buffer_flag: true
+  splits: '3:1:1'
+  stride: 30
+  win_size: 60
+modelBaseConfig: !!python/object:src.config_options.modelbase_configs.HyperParm
+  batch_size: 128
+  epochs: 20
+  label_mode: multilabel
+  label_smoothing: 0.2
+  lr: 0.001
+  patience: 20
+  test_batch_size: 512
+  val_batch_size: 512
+  weight_decay: 0.001
+nasOption: !!python/object:src.config_options.nas_configs.NASOption
+  backend: no_report
+  enable: true
+  num_cpus: 16
+  num_gpus: 1
+  num_samples: 1
+  search_strategy: random
+trainerOption: !!python/object:src.config_options.option_def.TrainerOption
+  mode: max
+  monitor: val_f1macro

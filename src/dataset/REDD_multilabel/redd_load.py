@@ -5,6 +5,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
+from typing import Literal
 import pandas as pd
 
 
@@ -20,7 +21,7 @@ def parse_labels(path) -> dict:
     return labels
 
 
-def read_merge_data(path, labels, channels=None, merge_how="left"):
+def read_merge_data(path, labels, channels, merge_how="left"):
     file = Path(path).joinpath("channel_1.dat")
     # file = path + 'channel_1.dat'
     df = pd.read_table(
@@ -32,9 +33,7 @@ def read_merge_data(path, labels, channels=None, merge_how="left"):
 
     num_apps = len(glob.glob(path + "/channel*"))
     print(num_apps)
-    for i in range(2, num_apps + 1):
-        if channels is not None and i not in channels:
-            continue
+    for i in channels:
         file = path + f"/channel_{i}.dat"
         data = pd.read_table(
             file,
@@ -64,6 +63,7 @@ def get_dataset(
     channels: list,
     sample_seconds: int = 6,
     fillna_limit=1,
+    drop_na_how: Literal['any','all'] = 'any'
 ):
 
     data_root = Path(data_root)
@@ -75,13 +75,14 @@ def get_dataset(
         .mean()
         .fillna(method="backfill", limit=fillna_limit)
     )
-    df_house = df_house.dropna()
-    l = len(df_house)
+    df_house = df_house.dropna(how=drop_na_how)
+    # l = len(df_house)
 
-    train = df_house[0 : round(0.6 * l)]
-    val = df_house[round(0.6 * l) : round(0.8 * l)]
-    test = df_house[round(0.8 * l) :]
-    return train, val, test
+    # train = df_house[0 : round(0.6 * l)]
+    # val = df_house[round(0.6 * l) : round(0.8 * l)]
+    # test = df_house[round(0.8 * l) :]
+    # return train, val, test
+    return df_house
 
 
 def test_get_dataset():

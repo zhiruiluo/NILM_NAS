@@ -17,6 +17,7 @@ def model_dict_init():
         "RF": "src.model.RandomForest.RF",
         "KNC": "src.model.KNC.KNC",
         "MLkNN": "src.model.MLkNN.MLkNN",
+        "MLSVM": "src.model.MLSVM.MLSVM",
         "LSTM_AE": "src.model.LSTM_AE.LSTM_AE",
         "CNN_LSTM": "src.model.CNN_LSTM.CNN_LSTM",
     }

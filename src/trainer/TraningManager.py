@@ -4,13 +4,23 @@ import json
 import logging
 import os
 import pprint
+import random
 import traceback
+
+import numpy as np
+import torch
+import gc
 
 from src.base_module.base_lightning import count_parameters
 from src.config_options.option_def import MyProgramArgs
 from src.database.Persistence import PersistenceFactory
 from src.project_logging import LoggerManager
-from src.trainer.Imp_training import DatasetFactory, ModelFactory, TrainingFactory
+from src.trainer.Imp_training import (DatasetFactory, ModelFactory,
+                                      TrainingFactory)
+torch.manual_seed(0)
+random.seed(0)
+np.random.seed(0)
+
 
 logger = logging.getLogger(__name__)
 
@@ -44,23 +54,24 @@ class TrainingManager:
         self.persistence.save_expresults(results, self.args)
         return results
 
-
 def trainable(config: dict, debug=False):
-    print("[start trainable]")
     if "args" in config:
         args: MyProgramArgs = config["args"]
-
+    
     if "nas_params" in config:
         nas_params: dict = config["nas_params"]
 
-    # from ray.air import session
+    if args.trainerOption.verbose:
+        print("[start trainable]")
 
     if not debug:
-        print("[trainable] non_debug_mode")
+        if args.trainerOption.verbose:
+            print("[trainable] non_debug_mode")
         LoggerManager.get_task_logger(args)
         logger.info("[trainable] non_debug_mode")
     else:
-        print("[trainable] debug_mode")
+        if args.trainerOption.verbose:
+            print("[trainable] debug_mode")
         LoggerManager.get_task_debug_logger(args)
         logger.info("[trainable] debug_mode")
 
@@ -74,27 +85,31 @@ def trainable(config: dict, debug=False):
         # init training
         dataset = DatasetFactory().get_dataset(args)
         dataset.prepare_data()
-
+        dataset.setup('fit')
+        for i in dataset.train_dataloader():
+            ...
+        dataset.setup('test')
         model = ModelFactory().get_model(dataset.nclass, args)
 
         tfac = TrainingFactory(args, model, dataset)
         training = tfac.get_training()
 
         results = training.train()
-        # session.report({"accuracy": results.test_metrics.acc})
-        # session.report({"f1macro": results.test_metrics.f1macro})
         trial_ret = {"setting": vars(args).copy(), "results": results}
         logger.info(f"test results {pprint.pformat(trial_ret)}")
-
-        if "nas_params" in locals():
-            results.nas_params = json.dumps(nas_params)
+        
+        
         if args.nasOption.enable:
+            nas_p = {}
+            if "nas_params" in locals():
+                nas_p.update(nas_params)
             if hasattr(model, 'parameters'):
-                results.nas_params = json.dumps(
-                    {
+                nas_p.update({
                         "params": count_parameters(model, trainable_only=False),
                         "trainable_params": count_parameters(model, trainable_only=True),
-                    },
+                    },)
+                results.nas_params = json.dumps(
+                    nas_p
                 )
         persistence = PersistenceFactory(
             db_name=args.systemOption.db_name,
@@ -102,6 +117,11 @@ def trainable(config: dict, debug=False):
         ).get_persistence()
         persistence.save_expresults(results, args)
         logger.info(f"Training ended, results saved!")
+        
+        del model
+        del dataset
+        del persistence
+        gc.collect()
 
     except Exception as e:
         logger.error(f"Error pid {os.getpid()}: {traceback.format_exc()}")

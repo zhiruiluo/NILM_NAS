@@ -21,9 +21,29 @@ OPS: dict[str, typing.Callable[[int, int, bool], nn.Module]] = {
         nn.Conv1d(C, C, (7, 1), stride=(stride, 1), padding=(3, 0), bias=False),
         nn.BatchNorm1d(C, affine=affine),
     ),
-    "conv_1x1": lambda C, stride, affine: ReLUConvBN(C,C,1,stride,0,affine)
+    "conv_1x1": lambda C, stride, affine: ReLUConvBN(C,C,1,stride,0,affine),
+    "conv_3x3": lambda C, stride, affine: ReLUConvBN(C,C,3,stride,1,affine),
+    "conv_5x5": lambda C, stride, affine: ReLUConvBN(C,C,5,stride,2,affine),
 }
 
+class ConvBNReLU(nn.Module):
+    def __init__(self, C_in, C_out, kernel_size, stride, padding, affine=True):
+        super().__init__()
+        self.op = nn.Sequential(
+            nn.ReLU(inplace=False),
+            nn.Conv1d(
+                C_in,
+                C_out,
+                kernel_size,
+                stride=stride,
+                padding=padding,
+                bias=False,
+            ),
+            nn.BatchNorm1d(C_out, affine=affine),
+        )
+
+    def forward(self, x):
+        return self.op(x)
 
 class ReLUConvBN(nn.Module):
     def __init__(self, C_in, C_out, kernel_size, stride, padding, affine=True):

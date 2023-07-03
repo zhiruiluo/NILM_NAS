@@ -55,6 +55,29 @@ class DatasetConfig_REDD_multilabel(DatasetConfig):
     stride: int = 60
     combine_mains: bool = False
     imbalance_sampler: bool = False
+    drop_na_how: Literal['any', 'all'] = 'any'
+
+
+@dataclasses.dataclass
+class DatasetConfig_UKDALE_multilabel(DatasetConfig):
+    appliances: List[str] = dataclasses.field(
+        default_factory=lambda: [
+            "kettle",
+            "refrigerator",
+            "microwave",
+            "dishwasher",
+            "washingmachine",
+        ],
+    )
+    house_no: int = 1
+    splits: str = "3:1:1"
+    index_buffer_flag: bool = True
+    win_size: int = 600
+    stride: int = 60
+    imbalance_sampler: bool = False
+    random_sampler: bool = False
+    random_sampler_ratio: float = 0.5
+    drop_na_how: Literal['any', 'all'] = 'any'
 
 
 @dataclasses.dataclass
@@ -67,11 +90,12 @@ class DatasetConfig_REDD_ML_multihouse(DatasetConfig):
             "washer_dryer",
         ],
     )
-    train_house_no: List[int] = dataclasses.field(default_factory=lambda: [2,3,5])
-    test_house_no: List[int] = dataclasses.field(default_factory=lambda: [1])
+    train_house_no: List[int] = dataclasses.field(default_factory=lambda: [2,3])
+    test_house_no: List[int] = dataclasses.field(default_factory=lambda: [1,5])
     val_ratio: float = 0.2
+    val_source: Literal['train', 'test'] = 'train'
     index_buffer_flag: bool = True
-    win_size: int = 600
+    win_size: int = 300
     stride: int = 60
     combine_mains: bool = False
     imbalance_sampler: bool = False

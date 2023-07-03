@@ -48,6 +48,7 @@ class SlurmConfig(Serializable):
 
     def _replace_command(self, command_str):
         command_str = command_str.replace("{{EXP_NAME}}", self.job_name)
+        command_str = command_str + f' --log_dir={self.log_dir}'
         return command_str
 
     def replace_patterns(self) -> None:

@@ -268,9 +268,9 @@ class OptionManager:
         args, opt_seq = parser.parse_known_args(argv)
         if args.config_path != "":
             args = MyProgramArgs.load_yaml(args.config_path)
-            print(f"[config_path] loading from file\n{args}")
+            # print(f"[config_path] loading from file\n{args}")
             return args, opt_seq
-        print("[config_path] not load from file")
+        # print("[config_path] not load from file")
         return None, opt_seq
 
     def _parse_default(self, argv, default):

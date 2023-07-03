@@ -8,9 +8,7 @@ from einops import rearrange
 from src.base_module.base_lightning import LightningBaseModule
 from src.config_options.model_configs import ModelConfig_BitcnNILM
 from src.config_options.option_def import MyProgramArgs
-from src.model.multilabel_head import (MultilabelLinear, MultilabelLinearFocal,
-                                       MultilabelLinearMask, SharedBCELinear,
-                                       SharedBCEPlainLinear)
+from src.model.multilabel_head import HeadModule
 
 dilations = [1, 2, 4, 8, 16, 32, 64, 128]
 
@@ -73,16 +71,8 @@ class BitcnNILM(LightningBaseModule):
         self.f = nn.Flatten()
         
         if args.modelBaseConfig.label_mode == "multilabel":
-            if config.head_type == 'CE':
-                self.linear = MultilabelLinear(128, config.nclass)
-            elif config.head_type == 'Focal':
-                self.linear = MultilabelLinearFocal(128, config.nclass)
-            elif config.head_type == 'SBCE':
-                self.linear = SharedBCELinear(128, config.nclass)
-            elif config.head_type == 'Paper':
-                self.linear = SharedBCEPlainLinear(128, config.nclass)
-            elif config.head_type == 'Mask':
-                self.linear = MultilabelLinearMask(128, config.nclass)
+            if config.head_type != '':
+                self.linear = HeadModule[config.head_type](128, config.nclass, 0.5)
             else:
                 raise ValueError(f'invalid head type: {config.head_type}')
         elif args.modelBaseConfig.label_mode == "multiclass":
@@ -150,10 +140,29 @@ def test_BitcnNILM_multilabel():
     opt = OptionManager()
     args = opt.replace_params(
         {"modelConfig": "BitcnNILM", "modelBaseConfig.label_mode": "multilabel",'modelConfig.in_chan': 2,
-         "modelConfig.nclass": 4},
+         "modelConfig.nclass": 4, "modelConfig.head_type": "SASL"},
     )
     model = BitcnNILM(args)
     model.eval()
     batch={'input': torch.randn(32, 600, 2),'target': torch.empty((32, 4), dtype=torch.long).random_(2),}
     out = model(batch)
+    print(out['output'].shape)
+
+def test_BitcnNILM_mask():
+    from src.config_options import OptionManager
+
+    opt = OptionManager()
+    args = opt.replace_params(
+        {"modelConfig": "BitcnNILM", "modelBaseConfig.label_mode": "multilabel",'modelConfig.in_chan': 1,
+         "modelConfig.nclass": 4, "modelConfig.head_type": "Mask"},
+    )
+    model = BitcnNILM(args)
+    model.eval()
+    batch={
+        'input': torch.randn(2, 600,1, requires_grad=True),
+        'target':  torch.tensor([[0,0,1,1],[1,1,0,0]],dtype=torch.long),
+        'mask':  torch.tensor([[1,1,1,1],[1,1,1,0]], dtype=torch.long),
+    }
+    out = model(batch)
+    print(out)
     print(out['output'].shape)

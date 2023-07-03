@@ -11,7 +11,7 @@ from src.base_module.base_lightning import LightningBaseModule
 from src.config_options.model_configs import ModelConfig_TSNetRepeat
 from src.config_options.option_def import MyProgramArgs
 
-from .bitstring_decoder import convert, decode_genome
+from .bitstring_decoder import convert_repeat, decode_genome
 from .decoder import ConnAndOpsDecoder
 from src.model.multilabel_head import MultilabelLinearFocal, MultilabelLinear, SharedBCELinear
 
@@ -21,7 +21,7 @@ class TSNetRepeat(LightningBaseModule):
         config: ModelConfig_TSNetRepeat = args.modelConfig
 
         list_genome = decode_genome(
-            convert(np.array([int(x) for x in config.bit_string]), config.n_phases),
+            convert_repeat(np.array([int(x) for x in config.bit_string]), config.n_phases),
         )
         chan = []
         for i in range(config.n_phases):
@@ -89,6 +89,12 @@ def test_models():
             "modelConfig.in_channels": 2,
         },
     )
+    
+    args.modelConfig = ModelConfig_TSNetRepeat(
+        nclass=3, n_phases=3, n_ops=4, 
+        bit_string='0101000111010',
+        in_channels=1, out_channels=32, dropout=0.5, head_type='Focal')
+    
     model = TSNetRepeat(args)
-    batch = {"input": torch.randn(16, 600,2)}
-    print(model(batch).shape)
+    batch = {"input": torch.randn(16, 600, 1), 'target': torch.empty(16,3).random_(2)}
+    print(model(batch))

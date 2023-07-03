@@ -4,11 +4,13 @@ import logging
 import os
 
 import sqlalchemy
+from sqlalchemy import sql
 from sqlalchemy import and_, create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.database.engine.BaseDatabaseEngine import BaseDatabaseEngine
 from src.database.SQLiteMapper import Results, mapper_registry
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -19,19 +21,19 @@ def lockretry(func):
         max_retry = 3
         while retry_times <= max_retry:
             if retry_times != 0:
-                logger.info(f"[LockRetry] retry {func.__name__} {retry_times} times!")
-                print(f"[LockRetry] retry {func.__name__} {retry_times} times!")
+                logger.info(f"[LockRetry] retry {func.__name__} {args} {kwargs} {retry_times} times!")
+                print(f"[LockRetry] retry {func.__name__} {args} {kwargs} {retry_times} times!")
             try:
                 ret = func(*args, **kwargs)
             except sqlalchemy.exc.OperationalError as e:
-                logger.info(f"[LockRetry] {e} retry {func.__name__}!")
+                logger.info(f"[LockRetry] {e} retry {func.__name__} {args} {kwargs}!")
                 print(f"error message {e}")
-                print(f"[LockRetry] retry {func.__name__} {retry_times} times!")
+                print(f"[LockRetry] retry {func.__name__} {args} {kwargs} {retry_times} times!")
                 retry_times += 1
             else:
                 break
         else:
-            exit()
+            raise Exception(f'[LockRetry] {func.__name__} {args} {kwargs} failed!')
         return ret
 
     return wrapper
@@ -39,7 +41,7 @@ def lockretry(func):
 
 class SQLiteEngine(BaseDatabaseEngine):
     def __init__(self, db_name: str, db_dir: str = __file__, create_db: str = True):
-        super().__init__(db_name, db_dir)
+        super().__init__(db_name, db_dir, create_db)
         self.timeout = 15
         logger.info(f"[SQLiteEngine] db_file path {self.db_path}")
         if create_db:
@@ -89,6 +91,10 @@ class SQLiteEngine(BaseDatabaseEngine):
             clauses.append(clause)
 
         statm = select(model.__table__).where(and_(*clauses))
+        return statm
+
+    def select_asterisk(self, model: Results):
+        statm = sql.text(f'select * from {model.__table__}')
         return statm
 
     @lockretry

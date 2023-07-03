@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 OPS_Encoding = {
-    "000": "skip_connect",
-    # '': 'max_pool_1x1',
-    "001": "conv_1x1",
+    "000": "conv_3x3",
+    "001": "conv_5x5",
     "010": "max_pool_3x3",
     "011": "avg_pool_3x3",
     "100": "sep_conv_3x3",

@@ -25,9 +25,8 @@ class HyperParm(ModelBaseConfig):
     label_smoothing: float = 0.2
     lr: float = 1e-3
     weight_decay: float = 5e-4
-    # batch_size: int = 32
-    # val_batch_size: int = 128
-    # test_batch_size: int = 128
+    lr_scheduler: str = 'none'
+    optimizer: str = 'AdamW'
     label_mode: str = "multilabel"
 
 

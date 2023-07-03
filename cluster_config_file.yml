@@ -1,0 +1,33 @@
+cluster_name: cluster_1
+max_workers: 1
+upscaling_speed: float
+idle_timeout_minutes: int
+docker:
+    docker
+provider:
+    provider
+auth:
+    auth
+available_node_types:
+    node_types
+head_node_type: str
+file_mounts:
+    file_mounts
+cluster_synced_files:
+    - str
+rsync_exclude:
+    - str
+rsync_filter:
+    - str
+initialization_commands:
+    - str
+setup_commands:
+    - str
+head_setup_commands:
+    - str
+worker_setup_commands:
+    - str
+head_start_ray_commands:
+    - str
+worker_start_ray_commands:
+    - str

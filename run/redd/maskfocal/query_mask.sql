@@ -1,0 +1,1 @@
+select data_params, model_params, val_acc, max(val_f1macro), test_acc, test_f1macro from results where model_params = '{"in_chan": 1, "nclass": 4, "num_layers": 4, "hidden_size": 128, "head_type": "Focal"}' group by data_params ;

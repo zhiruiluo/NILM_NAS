@@ -17,6 +17,7 @@ def dataset_dict_init():
         "REDD_multilabel": "src.dataset.REDD_multilabel.REDD_multilabel.REDD_multilabel",
         "REDD_ML_multihouse": "src.dataset.REDD_ML_multihouse.REDD_ML_multihouse.REDD_ML_multihouse",
         "REDD_Bitcn": "src.dataset.REDD_Bitcn.REDD_Bitcn.REDD_Bitcn",
+        "UKDALE_multilabel": "src.dataset.UKDALE_multilabel.UKDALE_multilabel.UKDALE_multilabel",
     }
 
 

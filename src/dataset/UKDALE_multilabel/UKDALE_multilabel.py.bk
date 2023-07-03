@@ -1,0 +1,394 @@
+from __future__ import annotations
+
+import logging
+import sys
+sys.path.append('.')
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+import pandas as pd
+import pytorch_lightning as pl
+from ml_toolkit.utils.decorator import disk_buffer
+from numpy.lib.stride_tricks import sliding_window_view
+from torch.utils.data import DataLoader, Dataset
+from torch.utils.data.sampler import RandomSampler
+from torchvision import transforms
+
+from src.config_options.dataset_configs import DatasetConfig_UKDALE_multilabel
+from src.config_options.option_def import MyProgramArgs
+from src.context import get_project_root
+
+from src.dataset.sampler import ImbalancedDatasetSampler
+from src.dataset.UKDALE_multilabel.custom_transform import ApplyPowerLabel, MinMax, NumpyToTensor
+from src.dataset.UKDALE_multilabel.ukdale_load import dataset_by_house, get_dataset
+import tempfile
+
+logger = logging.getLogger(__name__)
+
+data_preprocessing = {
+    "appliances": {
+        "on_threshold": {
+            "kettle": 200,
+            "microwave": 200,
+            "refrigerator": 50,
+            "dishwasher": 10,
+            "washingmachine": 20
+        },
+        "mean_power": {
+            "kettle": 700,
+            "microwave": 500,
+            "refrigerator": 200,
+            "dishwasher": 700,
+            "washingmachine": 400
+        },
+        "std_power": {
+            "kettle": 1000,
+            "microwave": 800,
+            "refrigerator": 400,
+            "dishwasher": 1000,
+            "washingmachine": 700
+        }
+    },
+    "sliding_window": {
+        "train": {"win_size": 300, "stride": 60,},
+        "val": {"win_size": 300, "stride":60,},
+        "test": {"win_size": 300, "stride": 60,}
+    }
+}
+
+app_name_mapper = {
+    'house_1': {
+        'aggregate': 'aggregate',
+        'kettle': 'kettle',
+        'refrigerator': 'fridge',
+        'dishwasher': 'dishwasher',
+        'washingmachine': 'washing_machine',
+        'microwave': 'microwave'
+    },
+    'house_2': {
+        'aggregate': 'aggregate',
+        'kettle': 'kettle',
+        'refrigerator': 'fridge',
+        'dishwasher': 'dish_washer',
+        'washingmachine': 'washing_machine',
+        'microwave': 'microwave'
+    }
+}
+
+appliances = {
+    "house_1": {
+        "kettle": [10],
+        "fridge": [12],
+        "microwave": [13],
+        "dishwasher": [6],
+        "washing_machine": [5],
+    },
+    "house_2": {
+        "kettle": [8],
+        "fridge": [14],
+        "microwave": [15],
+        "dish_washer": [13],
+        "washing_machine": [12],
+    },
+    "house_3": {
+        "kettle": [2],
+        "fridge": [],
+        "microwave": [],
+        "dish_washer": [],
+        "washing_machine": [],
+    },
+    "house_4": {
+        "fridge": [],
+        "microwave": [],
+        "dish_washer": [],
+        "washing_machine": [],
+    },
+    "house_5": {
+        "kettel": [18],
+        "fridge": [19],
+        "microwave": [23],
+        "dish_washer": [22],
+        "washing_machine": [24],
+    },
+}
+
+def convert_df_columns(df_house, house_no):
+    reverse_name_mapper = {}
+    for k,v in app_name_mapper[house_no].items():
+        reverse_name_mapper[v] = k
+        
+    columns = []
+    for col_k in df_house.columns:
+        n = '_'.join(col_k.split('_')[:-1])
+        mapped_name = reverse_name_mapper[n]
+        columns.append(mapped_name + '_'+ col_k.split('_')[-1])
+    
+    df_house.columns = columns
+    return df_house
+    
+def apply_threshold(df_target: pd.DataFrame) -> pd.DataFrame:
+    for col_k in df_target.columns:
+        n = ''.join(col_k.split('_')[:-1])
+        app_thd = data_preprocessing["appliances"]["on_threshold"][n]
+        cond = df_target[col_k] < app_thd
+        df_target[col_k] = df_target[col_k].where(cond, 1).mask(cond, 0)
+
+    return df_target
+
+
+class Seq2PointMultilabelDataset(Dataset):
+    def __init__(
+        self,
+        df_data: pd.DataFrame,
+        win_size: int = 300,
+        stride: int = 1,
+        transform=None,
+    ) -> None:
+        self.transform = transform
+
+        input = df_data[["aggregate_1"]]
+        target = df_data.drop(["aggregate_1"], axis=1)
+        
+        mask = ~pd.isna(target)
+        self.mask = mask.to_numpy()
+        
+        target[pd.isna(target)] = 0
+        target = apply_threshold(target)
+
+        self.input = input.to_numpy()
+        self.target = target.to_numpy()
+
+        self.win_view = sliding_window_view(
+            np.arange(self.input.shape[0]),
+            window_shape=win_size,
+        )
+        self.indices = np.arange(0, self.win_view.shape[0], stride)
+        self.length = len(self.indices)
+
+    def __getitem__(self, index):
+        idx = self.indices[index]
+        win_indices = self.win_view[idx]
+        sample = {
+            "input": self.input[win_indices],
+            "target": self.target[win_indices[-1]],
+            "mask": self.mask[win_indices[-1]]
+        }
+        if self.transform:
+            return self.transform(sample)
+        return sample
+
+    def __len__(self):
+        return self.length
+
+    def get_labels(self):
+        labels = self.target[self.win_view[self.indices][:, -1]]
+        y = np.arange(labels.shape[1]) ** 2
+        powerlabel = np.apply_along_axis(lambda x: np.inner(y, x), 1, labels)
+        return powerlabel
+
+
+class UKDALE_multilabel(pl.LightningDataModule):
+    def __init__(self, args: MyProgramArgs) -> None:
+        super().__init__()
+        self.config: DatasetConfig_UKDALE_multilabel = args.datasetConfig
+        self.prepare_data_per_node = False
+        self.save_hyperparameters("args")
+        self.data_root = "data/ukdale/"
+        self.args = args
+
+    def visualize(self):
+        folder = get_project_root().joinpath(".temp").as_posix()
+        with disk_buffer(
+            func=dataset_by_house,
+            keys=str(self.config.house_no),
+            folder=folder,
+        ) as bf_dataset_by_house:
+            train, val, test = bf_dataset_by_house(self.config.house_no, self.data_root)
+
+        df_train = pd.DataFrame.from_dict(train)
+        df_train_last = df_train.applymap(lambda x: x[-1])
+        print(df_train_last)
+        # classes = df_train_last.columns[2:]
+
+        def power(x):
+            c = 0
+            for i, v in enumerate(x[2:], 1):
+                c += i * v
+            return c
+
+        df_train_last["powerlabel"] = df_train_last.apply(power, axis=1).astype(int)
+
+        df_train_last.hist(figsize=(10, 10))
+        plt.savefig("results/power_label.png")
+
+    def prepare_data(self):
+        folder = get_project_root().joinpath(".temp").as_posix()
+
+        house_no = f'house_{self.config.house_no}'
+        selected_channels = [
+            appliances[house_no][app_name_mapper[house_no][app]] for app in self.config.appliances
+        ]
+        chs = [s_ch for s_chs in selected_channels for s_ch in s_chs]
+        
+
+        with disk_buffer(
+            func=get_dataset,
+            keys=str(self.config.house_no) + f"_ukdale_ml_s2p_{'_'.join(map(str,chs))}",
+            folder=folder,
+        ) as bf_get_dataset:
+            df_house = bf_get_dataset(
+                house_no=self.config.house_no,
+                data_root=self.data_root,
+                channels=chs,
+                drop_na_how=self.config.drop_na_how,
+            )
+            df_house = convert_df_columns(df_house, house_no=house_no)
+            l = len(df_house)
+            
+            val = df_house[0: round(l*0.2)]
+            test = df_house[round(l * 0.2): round(l * 0.4) ]
+            train = df_house[round(l * 0.4): ]
+
+        transform = transforms.Compose(
+            [MinMax(train, ["aggregate_1"]), NumpyToTensor()],
+        )
+
+        self.train_set = Seq2PointMultilabelDataset(
+            train,
+            win_size=self.config.win_size,
+            stride=self.config.stride,
+            transform=transform,
+        )
+        self.val_set = Seq2PointMultilabelDataset(
+            val,
+            win_size=self.config.win_size,
+            stride=self.config.stride,
+            transform=transform,
+        )
+        self.test_set = Seq2PointMultilabelDataset(
+            test,
+            win_size=self.config.win_size,
+            stride=self.config.stride,
+            transform=transform,
+        )
+        self.nclass = len(selected_channels)
+
+    def setup(self, stage: str) -> None:
+        if stage == "fit":
+            ...
+        if stage == "test":
+            ...
+
+    def _to_dataloader(
+        self,
+        dataset,
+        shuffle,
+        batch_size,
+        num_workers,
+        drop_last,
+        sampler=None,
+    ):
+        if sampler:
+            shuffle = False
+
+        if dataset is None:
+            return None
+        return DataLoader(
+            dataset,
+            batch_size=batch_size,
+            pin_memory=True,
+            drop_last=drop_last,
+            shuffle=shuffle,
+            sampler=sampler,
+            num_workers=num_workers,
+            # prefetch_factor=1,
+        )
+
+    def train_dataloader(self) -> DataLoader:
+        sampler = None
+        if self.config.imbalance_sampler:
+            sampler = ImbalancedDatasetSampler(self.train_set)
+        if self.config.random_sampler:
+            sampler = RandomSampler(self.train_set, 
+                                    num_samples=round(len(self.train_set)*self.config.random_sampler_ratio))
+        return self._to_dataloader(
+            self.train_set,
+            True,
+            self.args.modelBaseConfig.batch_size,
+            num_workers=1,
+            drop_last=False,
+            sampler=sampler,
+        )
+
+    def val_dataloader(self) -> DataLoader:
+        return self._to_dataloader(
+            self.val_set,
+            False,
+            self.args.modelBaseConfig.val_batch_size,
+            num_workers=1,
+            drop_last=False,
+        )
+
+    def test_dataloader(self) -> DataLoader:
+        return self._to_dataloader(
+            self.test_set,
+            False,
+            self.args.modelBaseConfig.test_batch_size,
+            num_workers=1,
+            drop_last=False,
+        )
+
+
+def test_ukdale():
+    from pyinstrument import Profiler
+
+    from src.config_options import OptionManager
+
+    opt = OptionManager()
+    args = opt.replace_params({'datasetConfig': 'UKDALE_multilabel',
+                               'datasetConfig.house_no':1})
+    p = Profiler()
+    with p:
+        ds = UKDALE_multilabel(args)
+        ds.prepare_data()
+        ds.setup("fit")
+        for batch in ds.train_dataloader():
+            print(batch)
+            break
+    print(p.output_text())
+
+def test_count():
+    from pyinstrument import Profiler
+
+    from src.config_options import OptionManager
+    opt = OptionManager()
+    args = opt.replace_params({'datasetConfig': 'UKDALE_multilabel',
+                               'datasetConfig.random_sampler': True,
+                               'datasetConfig.random_sampler_ratio': 0.3,
+                               'datasetConfig.house_no':1,
+                               'datasetConfig.stride': 30,
+                               'datasetConfig.win_size': 150})
+    p = Profiler()
+    with p:
+        
+        ds = UKDALE_multilabel(args)
+        ds.prepare_data()
+        ds.setup("fit")
+        print(len(ds.train_dataloader()))
+        print(len(ds.val_dataloader()))
+        ds.setup("test")
+        print(len(ds.test_dataloader()))
+    print(p.output_text())
+    
+def test_visual():
+    from src.config_options import OptionManager
+
+    opt = OptionManager()
+    args = opt.args
+    ds = UKDALE_multilabel(args)
+    ds.visualize()
+
+if __name__ == '__main__':
+    test_count()

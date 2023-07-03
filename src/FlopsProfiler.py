@@ -69,7 +69,8 @@ class FlopsProfiler:
             flops, macs, params = self._deepspeed_(model, input_shape, args, kwargs)
             logger.info(f"flops: {flops} macs: {macs} params: {params}")
         else:
-            raise ValueError("Error")
+            # raise ValueError("Error")
+            return 0
             flops = self._fvcore_(model, input_shape)
             macs, params = self._ptflops_(model, input_shape)
             logger.info(f"flops: {flops} macs: {macs} params: {params}")

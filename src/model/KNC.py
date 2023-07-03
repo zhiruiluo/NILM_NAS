@@ -16,7 +16,7 @@ class KNC(SklearnBaseModule):
             weights=config.weights,
             algorithm=config.algorithm,
             leaf_size=config.leaf_size,
-            n_jobs=4,
+            n_jobs=args.nasOption.num_cpus,
         )
 
     def get_skmodel(self):

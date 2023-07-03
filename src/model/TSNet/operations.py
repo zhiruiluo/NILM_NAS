@@ -1,3 +1,4 @@
+# https://github.com/Chen-yu-Zheng/AutoLC/
 from __future__ import annotations
 
 import typing

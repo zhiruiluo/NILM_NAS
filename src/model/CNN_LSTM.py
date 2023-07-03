@@ -6,7 +6,7 @@ from src.base_module.base_lightning import LightningBaseModule
 from src.config_options.option_def import MyProgramArgs
 from src.config_options.model_configs import ModelConfig_CNN_LSTM
 from einops import rearrange
-from .multilabel_head import MultilabelLinearFocal
+from .multilabel_head import *
 
 def lstm(input_size,hidden_size,num_layers=1,bias=True,batch_first=False,dropout=0,bidirectional=False):
     return nn.LSTM(input_size,hidden_size,num_layers,bias,batch_first,dropout,bidirectional)
@@ -44,7 +44,6 @@ class LSTM_subnet(nn.Module):
         output = rearrange(output, "b t (d h) -> b t h d", d=2)
         output = torch.sum(output, dim=3)
         _, (hn, cn) = self.lstm(output)
-        print(hn[-1].shape)
         return self.lazy_linear(hn[-1])
 
 
@@ -56,20 +55,40 @@ class CNN_LSTM(LightningBaseModule):
         self.cnn_sub = CNN_subnet(config.in_chan, out_features)
         self.lstm_sub = LSTM_subnet(input_size=config.in_chan, hidden_size=64, out_features=out_features)
         self.flatten = nn.Flatten()
-        self.fc = MultilabelLinearFocal(out_features*2, config.nclass)
+        
+        in_dim = out_features * 2
+        if args.modelBaseConfig.label_mode == 'multilabel':
+            if config.head_type == 'CE':
+                self.fc = MultilabelLinear(in_dim, config.nclass)
+            elif config.head_type == 'Focal':
+                self.fc = MultilabelLinearFocal(in_dim, config.nclass)
+            elif config.head_type == 'SBCE':
+                self.fc = SharedBCELinear(in_dim, config.nclass)
+            elif config.head_type == 'Paper':
+                self.fc = SharedBCEPlainLinear(in_dim, config.nclass)
+            elif config.head_type == 'Mask':
+                self.fc = MultilabelLinearMask(in_dim, config.nclass)
+            elif config.head_type == 'ASL':
+                self.fc = MultilabelLinearASL(in_dim, config.nclass)
+            elif config.head_type == 'MaskFocal':
+                self.fc = MultilabelLinearMaskFocal(in_dim, config.nclass)
+            else:
+                raise ValueError(f'invalid head type: {config.head_type}')
+        
             
     def forward(self, batch):
         x = batch['input']
         target = batch['target']
+        
         cnn_out = self.cnn_sub(rearrange(x, "b t f -> b f t"))
         lstm_hidden = self.lstm_sub(x)
-        print(cnn_out.shape, lstm_hidden.shape)
-        out = torch.concatenate((cnn_out,lstm_hidden), dim=1)
-        print(out.shape)
-        batch['feature'] = self.flatten(out)
-        predictions = self.fc(batch)
         
+        out = torch.concatenate((cnn_out,lstm_hidden), dim=1)
+        batch['feature'] = self.flatten(out)
+        
+        predictions = self.fc(batch)
         return predictions
+    
     
 def test_cnn_lstm():
     from src.config_options import OptionManager

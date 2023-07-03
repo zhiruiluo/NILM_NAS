@@ -51,12 +51,18 @@ class ResultSqliteDao(ResultDao):
             train_acc=result.train_metrics.acc,
             train_f1macro=result.train_metrics.f1macro,
             train_f1micro=result.train_metrics.f1micro,
+            train_loss=result.train_metrics.loss,
+            train_confmx=result.train_metrics.confmx,
             val_acc=result.val_metrics.acc,
             val_f1macro=result.val_metrics.f1macro,
             val_f1micro=result.val_metrics.f1micro,
+            val_loss=result.val_metrics.loss,
+            val_confmx=result.val_metrics.confmx,
             test_acc=result.test_metrics.acc,
             test_f1macro=result.test_metrics.f1macro,
             test_f1micro=result.test_metrics.f1micro,
+            test_loss=result.test_metrics.loss,
+            test_confmx=result.test_metrics.confmx,
             start_time=result.start_time,
             training_time=result.training_time,
             flops=result.flops,
@@ -81,7 +87,9 @@ class ResultSqliteDao(ResultDao):
 
     def get_all_results(self) -> list:
         results = Results()
-        statm = self.sqlite_engine.get_statement_exact_match(results)
+        # statm = self.sqlite_engine.get_statement_exact_match(results)
+        statm = self.sqlite_engine.select_asterisk(Results)
+        # statm = self.sqlite_engine.get_statement_exact_match()
         objs = self.sqlite_engine.get_all(statm)
         return objs
 

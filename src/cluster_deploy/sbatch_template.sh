@@ -4,13 +4,13 @@
 
 #SBATCH --partition={{PARTITION_NAME}}
 #SBATCH --job-name={{JOB_NAME}}
-#SBATCH --output={{JOB_DIR}}/{{JOB_NAME}}.log
+#SBATCH --output={{JOB_DIR}}/{{JOB_NAME}}.%j.log
 {{GIVEN_NODE}}
 
 ### This script works for any number of nodes, Ray will find and manage all resources
 #SBATCH --nodes={{NUM_NODES}}
 #SBATCH --exclusive
-#SBATCH --exclude=discovery-g[1]
+#SBATCH --exclude=discovery-g[1,2,3]
 
 ### Give all resources to a single Ray task, ray can manage the resources internally
 #SBATCH --ntasks-per-node=1
@@ -29,6 +29,7 @@
 # redis_password=$(uuidgen)
 # export redis_password
 
+temp_dir=/fs1/home/zluo_epscor/.ray/
 nodes=$(scontrol show hostnames $SLURM_JOB_NODELIST) # Getting the node names
 nodes_array=($nodes)
 
@@ -59,7 +60,8 @@ echo "STARTING HEAD at $node_head"
 RAY_worker_register_timeout_seconds=120
 export RAY_worker_register_timeout_seconds
 srun --nodes=1 --ntasks=1 -w $node_head  \
-  ray start --head --node-ip-address=$ip --port=$port --block --log-color=false --dashboard-host="0.0.0.0" &
+  ray start --head --node-ip-address=$ip --port=$port --block --log-color=false --dashboard-host "0.0.0.0" --dashboard-port 8265 --temp-dir=$temp_dir \
+    --object-store-memory 2000000000 --num-cpus 16 &
 sleep 10
 
 worker_num=$(($SLURM_JOB_NUM_NODES - 1)) #number of nodes other than the head node

@@ -70,7 +70,6 @@ def get_time_sha(args):
 def setup_logger(dir, fn, disable_stream_output, debug):
     config_dict = logging_setup_dict_config()
     dir = Path(dir)
-    print(f"[setup_logger] {dir}")
     dir.mkdir(parents=True, exist_ok=True)
     for fh, suffix in zip(["file", "errorlog"], [".log", ".err"]):
         config_dict["handlers"][fh]["filename"] = dir.joinpath(fn + suffix)
@@ -111,12 +110,13 @@ class LoggerManager:
         args.systemOption.update_dir()
         args.systemOption.mkdir()
         args.save_yaml(args.systemOption.task_dir + "/hparam.yaml")
-        print(
-            "[get_task_logger]",
-            args.systemOption.task_dir,
-            "[get_cwd_task]",
-            os.getcwd(),
-        )
+        if args.trainerOption.verbose:
+            print(
+                "[get_task_logger]",
+                args.systemOption.task_dir,
+                "[get_cwd_task]",
+                os.getcwd(),
+            )
         setup_logger(
             args.systemOption.task_dir,
             f"train_{get_time_sha(args)}",

@@ -1,0 +1,91 @@
+_type_: src.config_options.option_def.MyProgramArgs
+dataBaseConfig:
+  _type_: src.config_options.dataset_configs.DataBaseConfig
+  data_aug: RANDOM
+  norm_type: minmax
+datasetConfig:
+  _type_: src.config_options.dataset_configs.DatasetConfig_REDD
+  appliances:
+  - refrigerator
+  - microwave
+  - dishwasher
+  - washer_dryer
+  house_no: 1
+  index_buffer_flag: true
+  splits: '3:1:1'
+expOption:
+  _type_: src.config_options.option_def.ExpOption
+  dataset: REDD
+  exp: 1
+  gridid: 1
+  model: BasicV2
+  nfold: 1
+  nrepeat: 1
+modelBaseConfig:
+  _type_: src.config_options.modelbase_configs.HyperParm
+  batch_size: 32
+  epochs: 20
+  label_mode: multilabel
+  label_smoothing: 0.2
+  lr: 0.001
+  patience: 20
+  test_batch_size: 128
+  val_batch_size: 128
+  weight_decay: 0.0005
+modelConfig:
+  _type_: src.config_options.model_configs.ModelConfig_BasicV2
+  chan_1: 32
+  chan_2: 32
+  chan_3: 32
+  dropout: 0.5
+  in_channels: 1
+  ker_1: 3
+  ker_2: 3
+  ker_3: 3
+  nclass: 2
+  stride_1: 2
+  stride_2: 1
+  stride_3: 1
+nasOption:
+  _type_: src.config_options.nas_configs.NASOption
+  backend: ray_tune
+  enable: false
+  num_cpus: 8
+  num_gpus: 1
+  num_samples: 100
+  search_strategy: random_search
+resultOption:
+  _type_: src.config_options.option_def.ResultOption
+  fold: 1
+  repeat: 1
+systemOption:
+  _type_: src.config_options.option_def.SystemOption
+  address: ''
+  db_dir: /fs1/epscor/home/zluo_epscor/research/load_monitoring/logging/exp1
+  db_name: nas_results.db
+  debug: false
+  disable_stream_output: true
+  exp_dir: /fs1/epscor/home/zluo_epscor/research/load_monitoring/logging/exp1
+  exp_name: exp1
+  job_dir: /fs1/epscor/home/zluo_epscor/research/load_monitoring/logging/exp1/job1
+  job_name: job1
+  log_dir: /fs1/epscor/home/zluo_epscor/research/load_monitoring/logging
+  seed: 32
+  task_dir: /fs1/epscor/home/zluo_epscor/research/load_monitoring/logging/exp1/job1/task1
+  task_name: task1
+trainerOption:
+  _type_: src.config_options.option_def.TrainerOption
+  accelerator: gpu
+  auto_bs: false
+  devices: 1
+  fast_dev_run: false
+  limit_test_batches: 1.0
+  limit_train_batches: 1.0
+  limit_val_batches: 1.0
+  mode: max
+  monitor: val_f1macro
+  no_cuda: false
+  precision: 32
+  profiler: ''
+  strategy: ''
+  verbose: true

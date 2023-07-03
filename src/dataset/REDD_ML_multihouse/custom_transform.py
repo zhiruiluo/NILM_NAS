@@ -22,7 +22,7 @@ def apply_transform(
 
 
 class MinMax:
-    def __init__(self, train_set: dict[str, list], keys: list[str], combine_mains: bool=False) -> None:
+    def __init__(self, train_set: dict[str, list], keys: list[str]) -> None:
         scalers: dict[str, MinMaxScaler] = {}
         
         for k in keys:

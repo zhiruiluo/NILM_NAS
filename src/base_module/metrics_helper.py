@@ -119,10 +119,13 @@ class Metrics_Helper:
     @staticmethod
     def to_Metrics(results: dict[str, Any], phase: str) -> Metrics:
         res = {}
-        for k in ["acc", "accmacro", "f1macro", "f1micro"]:
+        for k in ["acc", "accmacro", "f1macro", "f1micro", "loss", "confmx"]:
             value = results.get(f"{phase}_{k}", None)
             if value is not None:
-                value = float(value)
+                if k == 'confmx':
+                    value = str(value)
+                else:
+                    value = float(value)
             res[k] = value
 
         return Metrics(**res)

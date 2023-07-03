@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import datetime
 from dataclasses import dataclass
 
@@ -10,6 +9,8 @@ class Metrics:
     accmacro: float
     f1macro: float
     f1micro: float
+    loss: float = float('inf')
+    confmx: str = ''
     # confmx: List[list]
 
 

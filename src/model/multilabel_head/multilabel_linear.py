@@ -20,7 +20,7 @@ class MultilabelLinear(nn.Module):
     def loss(self, predictions, batch):
         pred = predictions["pred"]
         target = batch["target"].type(torch.long)
-        target = F.one_hot(target).type(torch.float32)
+        target = F.one_hot(target, num_classes=2).type(torch.float32)
         return self.loss_fn(pred, target)
     
     def forward(self, batch):

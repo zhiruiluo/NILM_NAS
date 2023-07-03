@@ -23,12 +23,18 @@ class Results:
         Column("train_acc", Float),
         Column("train_f1macro", Float),
         Column("train_f1micro", Float),
+        Column("train_loss", Float),
+        Column("train_confmx", String),
         Column("val_acc", Float),
         Column("val_f1macro", Float),
         Column("val_f1micro", Float),
+        Column("val_loss", Float),
+        Column("val_confmx", String),
         Column("test_acc", Float),
         Column("test_f1macro", Float),
         Column("test_f1micro", Float),
+        Column("test_loss", Float),
+        Column("test_confmx", String),
         Column("start_time", DateTime),
         Column("training_time", Interval),
         Column("flops", Integer),
@@ -43,12 +49,18 @@ class Results:
     train_acc: float = None
     train_f1macro: float = None
     train_f1micro: float = None
+    train_loss: float = None
+    train_confmx: str = None
     val_acc: float = None
     val_f1macro: float = None
     val_f1micro: float = None
+    val_loss: float = None
+    val_confmx: str = None
     test_acc: float = None
     test_f1micro: float = None
     test_f1macro: float = None
+    test_loss: float = None
+    test_confmx: str = None
     start_time: datetime.datetime = None
     training_time: datetime.timedelta = None
     flops: int = None

@@ -289,7 +289,6 @@ class ConnAndOpsDecoder(ChannelBasedDecoder):
 
         if self._model is not None:
             return
-
         phases = []
         for idx, (gene, (in_channels, out_channels)) in enumerate(
             zip(self._genome, self._channels),
