@@ -1,84 +1,77 @@
 from __future__ import annotations
 
+import functools
 import logging
 import os
 import sys
 sys.path.append(".")
-
 import ray
 from ray import tune
 from ray.air import RunConfig
-from ray.tune.search.bayesopt import BayesOptSearch
 
 from src.cluster_deploy.slurm_deploy import slurm_launch
 from src.config_options import MyProgramArgs
-from src.config_options.model_configs import ModelConfig_BasicV2
-from src.config_options.options import OptionManager
+from src.config_options.options import OptionManager, replace_consistant
 from src.database.Persistence import PersistenceFactory
 from src.project_logging import LoggerManager
 from src.trainer.TraningManager import trainable
+import json
 
 
 logger = logging.getLogger(__name__)
 
 
-def search_space_basicv2_dict(args):
-    space = {
-        "modelConfig": {
-            "chan_1": tune.uniform(5, 9),
-            "chan_2": tune.uniform(5, 10),
-            "chan_3": tune.uniform(5, 10),
-            "ker_1": tune.uniform(3, 9),
-            "ker_2": tune.uniform(3, 7),
-            "ker_3": tune.uniform(3, 4),
-            "stride_1": tune.uniform(1, 3),
-            "stride_2": tune.uniform(0, 3),
-            "stride_3": tune.uniform(0, 2),
-            "dropout": tune.uniform(5, 7),
-        },
-        "args": args,
-    }
-    return space
-
-
-def space_to_model_config(config: dict) -> ModelConfig_BasicV2:
-    return ModelConfig_BasicV2(
-        chan_1=int(2 ** int(config["chan_1"])),
-        chan_2=int(2 ** int(config["chan_2"])),
-        chan_3=int(2 ** int(config["chan_3"])),
-        ker_1=int(config["ker_1"]),
-        ker_2=int(config["ker_2"]),
-        ker_3=int(config["ker_3"]),
-        stride_1=int(2 ** int(config["stride_1"])),
-        stride_2=int(2 ** int(config["stride_2"])),
-        stride_3=int(2 ** int(config["stride_3"])),
-        dropout=int(config["dropout"]) / 10.0,
-    )
-
-
-def trainable_wrapper(config: dict):
+def trainable_wrapper(config: dict, args: MyProgramArgs):
+    config.pop('model')
     os.sched_setaffinity(0, list(range(os.cpu_count())))
-    config["args"].modelConfig = space_to_model_config(config["modelConfig"])
+    config = replace_consistant(args, config)
     return trainable(config)
+    
 
-
+def parse_best_tsnet_json():
+    with open('./run/ukdale/multilabel/best_pf_f1macro_424.json', mode='r') as fp:
+        list_tsnets = json.load(fp)
+        
+    return list_tsnets
+    
+        
 def loop(args: MyProgramArgs):
-    space = search_space_basicv2_dict(args)
-
     metric = "val_acc"
     mode = "max"
 
+    list_tsnets = parse_best_tsnet_json()
+    
+    space = {
+        "model": tune.grid_search(list_tsnets),
+        "datasetConfig": {
+            "imbalance_sampler": tune.grid_search([False]),
+            "win_size": tune.sample_from(lambda spec: spec.config.model['win_size']),
+            "stride": tune.grid_search([30]),
+            "house_no": tune.grid_search([2]),
+        },
+        "modelConfig":{
+            "n_phases": 3,
+            "n_ops": 5,
+            "in_channels": 1,
+            "bit_string": tune.sample_from(lambda spec: spec.config.model['bit_string']),
+            "out_channels": tune.sample_from(lambda spec: spec.config.model['out_channels']),
+            "head_type": "ASL",
+        }
+    }
+
+    trainable_partial = functools.partial(trainable_wrapper, args=args)
+
     trainable_resource = tune.with_resources(
-        trainable_wrapper,
+        trainable_partial,
         resources={"CPU": args.nasOption.num_cpus, "GPU": args.nasOption.num_gpus},
     )
 
     tuner = tune.Tuner(
         trainable_resource,
         tune_config=tune.TuneConfig(
-            mode=mode,
-            metric=metric,
-            search_alg=BayesOptSearch(),
+            # mode=mode,
+            # metric=metric,
+            # search_alg=BayesOptSearch(),
             num_samples=args.nasOption.num_samples,
             chdir_to_trial_dir=False,
             reuse_actors=False,
@@ -95,12 +88,12 @@ def loop(args: MyProgramArgs):
 
 
 @slurm_launch(
-    exp_name="BO_BV2",
+    exp_name="TSNET_pareto",
     num_nodes=4,
     num_gpus=2,
     partition="epscor",
+    log_dir="logging/UKDALE_424",
     load_env="conda activate p39c116\n"
-    + "export OMP_NUM_THREADS=10\n"
     + "export PL_DISABLE_FORK=1",
     command_suffix="--address='auto' --exp_name={{EXP_NAME}}",
 )
@@ -109,26 +102,29 @@ def main():
     opt = OptionManager()
     args = opt.replace_params(
         {
-            "modelConfig": "BasicV2",
-            "datasetConfig": "REDD_multilabel",
+            "modelConfig": "TSNet",
+            "datasetConfig": "UKDALE_multilabel",
+            "trainerOption.monitor": 'val_f1macro',
+            "trainerOption.mode": "max",
             "nasOption.enable": True,
-            "nasOption.num_cpus": 16,
+            "nasOption.num_cpus": 8,
             "nasOption.num_gpus": 1,
-            "nasOption.search_strategy": "BayesOptimization",
+            "nasOption.search_strategy": "random",
             "nasOption.backend": "no_report",
             "nasOption.num_samples": 1,
             "modelBaseConfig.label_mode": "multilabel",
-            "modelBaseConfig.epochs": 1,
-            "modelBaseConfig.patience": 20,
+            "modelBaseConfig.epochs": 100,
+            "modelBaseConfig.patience": 100,
             "modelBaseConfig.label_smoothing": 0.2,
             "modelBaseConfig.lr": 1e-3,
             "modelBaseConfig.weight_decay": 1e-3,
-            "modelBaseConfig.batch_size": 32,
-            "modelBaseConfig.val_batch_size": 32,
-            "modelBaseConfig.test_batch_size": 32,
-            "trainerOption.limit_train_batches": 0.1,
-            "trainerOption.limit_val_batches": 0.1,
-            "trainerOption.limit_test_batches": 0.1,
+            "modelBaseConfig.batch_size": 128,
+            "modelBaseConfig.val_batch_size": 512,
+            "modelBaseConfig.test_batch_size": 512,
+            "modelBaseConfig.lr_scheduler": 'none',
+            # "trainerOption.limit_train_batches": 0.1,
+            # "trainerOption.limit_val_batches": 0.1,
+            # "trainerOption.limit_test_batches": 0.1,
         },
     )
     persistance = PersistenceFactory(
@@ -151,12 +147,8 @@ def main():
         )
     else:
         ray.init()
-
-    for house_no in [1]:
-        # for question_no in [5418]:
-        args.datasetConfig.house_no = house_no
-        logger.info(f"[Search] searching for house_no {house_no}")
-        loop(args)
+    
+    loop(args)
 
 
 main()

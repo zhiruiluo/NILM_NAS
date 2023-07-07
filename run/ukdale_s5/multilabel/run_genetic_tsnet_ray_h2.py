@@ -1,25 +1,23 @@
 from __future__ import annotations
-
 import os
 import sys
+from typing import Any
 
 sys.path.append('.')
-import copy
-import logging
-import time
-from pathlib import Path
-
-import dill
 import ray
 from pymoo.optimize import minimize
-from sklearn.model_selection import ParameterGrid
 
 from src.cluster_deploy import slurm_launch
 from src.config_options import MyProgramArgs, OptionManager
 from src.database.Persistence import PersistenceFactory
 from src.project_logging import LoggerManager
-from src.search.nas_problem_with_channel import get_tsnet_problem_with_channels
-from src.search.utils import do_every_generations
+from src.search.nas_problem import do_every_generations, get_tsnet_problem
+from sklearn.model_selection import ParameterGrid
+import copy
+import dill
+from pathlib import Path
+import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -28,37 +26,18 @@ N_GEN = 10
 
 
 class RayParallelization:
-    def __init__(self, address, job_resources={}) -> None:
+    def __init__(self, job_resources={}) -> None:
         super().__init__()
-        self.address = address
         self.job_resources = job_resources
 
-    def ray_init(self):
-        logger.info(f"ray init")
-        if os.environ.get("head_node_ip", None):
-            ray.init(
-                address=self.address,
-                _node_ip_address=os.environ["head_node_ip"],
-            )
-        else:
-            ray.init(resources={})
-            
-    def ray_shutdown(self):
-        ray.shutdown()
-
     def __call__(self, f, X):
-        self.ray_init()
         runnable = ray.remote(f.__call__.__func__)
         runnable = runnable.options(**self.job_resources)
         futures = [runnable.remote(f,x) for x in X]
-        
         try:
-            rets = ray.get(futures)
-            self.ray_shutdown()
-            return rets
+            return ray.get(futures)
         except ray.exceptions.RayTaskError as e:
             print(e)
-            self.ray_shutdown()   
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -68,65 +47,22 @@ class RayParallelization:
 #     def __init__(self, job_resources={}, max_pending_task=2) -> None:
 #         super().__init__()
 #         self.job_resources = job_resources
+#         self.result_refs = []
+#         self.ready_results = []
 #         self.max_num_pending_tasks = max_pending_task
-#         self.max_retries = 3
-        
-#         self.pending_refs = []
-#         self.ready_results = {}
-#         self.registered_tasks = []
-
-#     def _wait_refs(self, future_refs):
-#         ready_results = {}
-#         for i in range(self.max_retries+1):
-#             try:
-#                 ready_refs, pending_refs = ray.wait(future_refs,
-#                                                         num_returns=1)
-#                 ready_results[ready_refs[0]] = ray.get(ready_refs)[0]
-#                 return ready_results, pending_refs
-#             except ray.exceptions.WorkerCrashedError:
-#                 print(f'WorkerCrashedError catched! Runner is retrying for {i} time!')
-                
-#             time.sleep(2)
-#         raise TimeoutError('ray.exceptions.WorkerCrashedError! Max retries reached!')
-        
-#     def _preprocess(self):
-#         self.pending_refs = []
-#         self.ready_results = {}
-    
-#     def _postprocess(self):
-#         self.registered_tasks = []
-#         self.pending_refs = []
-#         self.ready_results = {}
 
 #     def __call__(self, f, X):
-#         self._preprocess()
-        
 #         runnable = ray.remote(f.__call__.__func__)
 #         runnable = runnable.options(**self.job_resources)
+#         for x in X:
+#             if len(self.result_refs) > self.max_num_pending_tasks:
+#                 ready_refs, self.result_refs = ray.wait(self.result_refs,
+#                                                         num_returns=1)
+#                 self.ready_results.append(ray.get(ready_refs))
+#             self.result_refs.append(runnable.remote(f,x))
         
-#         if len(self.registered_tasks) == 0:
-#             for x in X:
-#                 ref = runnable.remote(f,x)
-#                 self.registered_tasks.append((ref, x))
-        
-#         for ref, x in self.registered_tasks:
-#             if len(self.pending_refs) > self.max_num_pending_tasks:
-#                 ready_results, self.pending_refs = self._wait_refs(self.pending_refs)
-#                 self.ready_results.update(ready_results)
-#                 print(f'[RayParallelization] pending tasks {len(self.pending_refs)} | finished tasks {len(self.ready_results)}')
-#             self.pending_refs.append(ref)
-        
-#         while len(self.pending_refs) > 0:
-#             ready_results, self.pending_refs = self._wait_refs(self.pending_refs)
-#             self.ready_results.update(ready_results)
-#             print(f'[RayParallelization] pending tasks {len(self.pending_refs)} | finished tasks {len(self.ready_results)}')
-        
-#         rets = []
-#         for ref, _ in self.registered_tasks:
-#             rets.append(self.ready_results[ref])
-        
-#         self._postprocess()
-#         return rets
+#         self.ready_results.append(ray.get(self.result_refs))
+#         return self.ready_results
 
 #     def __getstate__(self):
 #         state = self.__dict__.copy()
@@ -149,17 +85,16 @@ class StatefulLoop():
         
         searcher = Searcher(args)
         searcher.search()
-                
+        self.save_checkpoint()
+    
     def run(self):
-        while self.iteration_idx < self.length_grid:
-            param = self.parameter_grid[self.iteration_idx]
-            self.iteration_idx += 1
+        for i in range(self.iteration_idx, self.length_grid):
+            param = self.parameter_grid[i]
+            self.iteration_idx = i
             self._trainable(param)
-            self.save_checkpoint()
         
     def next(self):
         param = self.parameter_grid[self.iteration_idx]
-        self.iteration_idx += 1
         self._trainable(param)
         self.save_checkpoint()
         
@@ -172,59 +107,83 @@ class StatefulLoop():
             dill.dump(self, f)
     
     @staticmethod
-    def load_checkpoint(path, args: MyProgramArgs=None, parameter_grid: dict=None) -> StatefulLoop:
+    def load_checkpoint(path) -> StatefulLoop:
         if os.path.isfile(path):
             with open(path, 'rb') as f:
-                obj = dill.load(f)
-                if args: obj.args = args
-                if parameter_grid: obj.parameter_grid = ParameterGrid(parameter_grid)
-                return obj
-            
-            
+                return dill.load(f)
+
 class Searcher():
     def __init__(self, args: MyProgramArgs) -> None:
         self.args = args
     
     def search(self):
         args = self.args
-        # logger.info(f"ray init")
-        # if os.environ.get("head_node_ip", None):
-        #     ray.init(
-        #         address=args.systemOption.address,
-        #         _node_ip_address=os.environ["head_node_ip"],
-        #     )
-        # else:
-        #     ray.init(num_cpus=8)
+        logger.info(f"ray init")
+        if os.environ.get("head_node_ip", None):
+            ray.init(
+                address=args.systemOption.address,
+                _node_ip_address=os.environ["head_node_ip"],
+                # _temp_dir=args.systemOption.exp_dir,
+            )
+        else:
+            ray.init(resources={})
     
-        runner = RayParallelization(
-            address=args.systemOption.address,
-            job_resources={
+        runner = RayParallelization(job_resources={
             'num_cpus': self.args.nasOption.num_cpus,
-            'num_gpus': self.args.nasOption.num_gpus},
-            # 'memory': 40*1024*1024*1024},
-            # max_pending_task=10,
-        )
+            'num_gpus': self.args.nasOption.num_gpus,
+            'memory': 64*1024*1024*1024
+        })
         
-        problem, algorithm, checkpoint = get_tsnet_problem_with_channels(
-            args, pop_size=POP_SIZE, monitor=args.trainerOption.monitor, mode=args.trainerOption.mode, elementwise_runner=runner, checkpoint_flag=True, debug=False)
+        problem, algorithm, checkpoint = get_tsnet_problem(
+            args, pop_size=POP_SIZE, monitor=args.trainerOption.monitor, mode=args.trainerOption.mode, elementwise_runner=runner, debug=True)
 
-        if checkpoint and checkpoint.has_checkpoint():
+        if checkpoint.has_checkpoint():
             algorithm = checkpoint.load_checkpoint()
-        
+            
         res = minimize(problem, algorithm, ('n_gen', N_GEN), seed=1,
-                    verbose=True, save_history=True, copy_termination=False, copy_algorithm=False, callback=do_every_generations)
+                    verbose=True, save_history=True, callback=do_every_generations)
             
         print("Threads:", res.exec_time, "res", res.F)
         logger.info(f"Threads: {res.exec_time} res {res.F}")
         print("history:", res.history)
         logger.info(f"history: {res.history}")
-        # ray.shutdown()
+        ray.shutdown()
         logger.info(f"ray shutdown")
+
+    
+def Search(args: MyProgramArgs, root_logger):
+    root_logger.info(f"ray init")
+    if os.environ.get("head_node_ip", None):
+        ray.init(
+            address=args.systemOption.address,
+            _node_ip_address=os.environ["head_node_ip"],
+            _temp_dir=args.systemOption.exp_dir,
+        )
+    else:
+        ray.init(resources={})
+        
+    runner = RayParallelization(job_resources={
+        'num_cpus': args.nasOption.num_cpus,
+        'num_gpus': args.nasOption.num_gpus,
+        'memory': 64*1024*1024*1024
+    })
+    problem, algorithm, checkpoint = get_tsnet_problem(
+        args, pop_size=POP_SIZE, monitor=args.trainerOption.monitor, mode=args.trainerOption.mode, elementwise_runner=runner, debug=False)
+
+    # if checkpoint.
+    res = minimize(problem, algorithm, ('n_gen', N_GEN), seed=1,
+                   verbose=True, save_history=True, callback=do_every_generations)
+    print("Threads:", res.exec_time, "res", res.F)
+    root_logger.info(f"Threads: {res.exec_time} res {res.F}")
+    print("history:", res.history)
+    root_logger.info(f"history: {res.history}")
+    ray.shutdown()
+    root_logger.info(f"ray shutdown")
 
 
 @slurm_launch(
-    exp_name='GDh2',
-    num_nodes=2,
+    exp_name='GEh2',
+    num_nodes=4,
     num_gpus=2,
     partition='epscor',
     log_dir='logging/UKDALE_424/',
@@ -247,6 +206,7 @@ def main():
         "modelConfig.n_phases": 3,
         "modelConfig.n_ops": 5,
         "modelConfig.in_channels": 1,
+        "modelConfig.out_channels": 32,
         "modelConfig.head_type": "ASL",
         "nasOption.enable": True,
         "nasOption.num_cpus": 8,
@@ -255,11 +215,11 @@ def main():
         "modelBaseConfig.epochs": 25,
         "modelBaseConfig.patience": 25,
         "modelBaseConfig.label_mode": "multilabel",
-        "modelBaseConfig.batch_size": 256,
+        "modelBaseConfig.batch_size": 512,
         "modelBaseConfig.val_batch_size": 512,
         "modelBaseConfig.test_batch_size": 512,
-        "modelBaseConfig.lr": 1e-3,
-        "modelBaseConfig.weight_decay": 1e-3,
+        "modelBaseConfig.lr": 0.025,
+        "modelBaseConfig.weight_decay": 1e-2,
         "modelBaseConfig.lr_scheduler": 'none',
     })
     
@@ -275,7 +235,7 @@ def main():
     
     
     parameter_grid = {
-        "win_size": [60,150,300],
+        "win_size": [150,300],
         "house_no": [2],
     }
     
@@ -283,7 +243,8 @@ def main():
     ckp_path.mkdir(parents=True, exist_ok=True)
     path = ckp_path.joinpath('stateful_loop.ckpt')
     if path.is_file():
-        loop = StatefulLoop.load_checkpoint(path, args)
+        loop = StatefulLoop.load_checkpoint(path)
+        loop.set_ckppath(path)
     else:
         loop = StatefulLoop(args, parameter_grid)
         loop.set_ckppath(path)

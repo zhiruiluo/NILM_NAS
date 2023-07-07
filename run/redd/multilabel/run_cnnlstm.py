@@ -79,12 +79,11 @@ def loop(args: MyProgramArgs):
 
 @slurm_launch(
     exp_name="CNNLSTM",
-    num_nodes=2,
+    num_nodes=1,
     num_gpus=2,
     partition="epscor",
     log_dir="logging/REDD_424/",
     load_env="conda activate p39c116\n"
-    + "export OMP_NUM_THREADS=10\n"
     + "export PL_DISABLE_FORK=1",
     command_suffix="--address='auto' --exp_name={{EXP_NAME}}",
 )
@@ -97,7 +96,7 @@ def main():
             "datasetConfig": "REDD_multilabel",
             "datasetConfig.splits": '4:2:4',
             "nasOption.enable": True,
-            "nasOption.num_cpus": 16,
+            "nasOption.num_cpus": 8,
             "nasOption.num_gpus": 1,
             "nasOption.search_strategy": "random",
             "nasOption.backend": "no_report",

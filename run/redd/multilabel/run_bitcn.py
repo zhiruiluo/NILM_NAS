@@ -76,17 +76,16 @@ def loop(args: MyProgramArgs):
     results = tuner.fit()
 
 
-# @slurm_launch(
-#     exp_name="Bitcn",
-#     num_nodes=1,
-#     num_gpus=2,
-#     partition="epscor",
-#     log_dir='logging/REDD_424/',
-#     load_env="conda activate p39c116\n"
-#     + "export OMP_NUM_THREADS=10\n"
-#     + "export PL_DISABLE_FORK=1",
-#     command_suffix="--address='auto' --exp_name={{EXP_NAME}}",
-# )
+@slurm_launch(
+    exp_name="Bitcn",
+    num_nodes=1,
+    num_gpus=2,
+    partition="epscor",
+    log_dir='logging/REDD_424/',
+    load_env="conda activate p39c116\n"
+    + "export PL_DISABLE_FORK=1",
+    command_suffix="--address='auto' --exp_name={{EXP_NAME}}",
+)
 def main():
     print(f"[getcwd] {os.getcwd()}")
     opt = OptionManager()
@@ -96,8 +95,8 @@ def main():
             "datasetConfig": "REDD_multilabel",
             "datasetConfig.splits": '4:2:4',
             "nasOption.enable": True,
-            "nasOption.num_cpus": 16,
-            "nasOption.num_gpus": 0,
+            "nasOption.num_cpus": 8,
+            "nasOption.num_gpus": 1,
             "nasOption.search_strategy": "random",
             "nasOption.backend": "no_report",
             "nasOption.num_samples": 1,

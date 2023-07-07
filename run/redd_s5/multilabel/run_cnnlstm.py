@@ -38,7 +38,7 @@ def loop(args: MyProgramArgs):
             "combine_mains": tune.grid_search([True]),
             "imbalance_sampler": tune.grid_search([False]),
             "win_size": tune.grid_search([60, 150, 300]),
-            "stride": tune.grid_search([30]),
+            "stride": tune.grid_search([5]),
             "house_no": tune.grid_search([1,3]),
             "drop_na_how": 'any',
         },
@@ -78,12 +78,12 @@ def loop(args: MyProgramArgs):
 
 
 @slurm_launch(
-    exp_name="ML_CNNLSTM",
-    num_nodes=2,
+    exp_name="CNNLSTM",
+    num_nodes=1,
     num_gpus=2,
     partition="epscor",
+    log_dir="logging/REDD_424_5/",
     load_env="conda activate p39c116\n"
-    + "export OMP_NUM_THREADS=10\n"
     + "export PL_DISABLE_FORK=1",
     command_suffix="--address='auto' --exp_name={{EXP_NAME}}",
 )
@@ -94,21 +94,23 @@ def main():
         {
             "modelConfig": "CNN_LSTM",
             "datasetConfig": "REDD_multilabel",
+            "datasetConfig.splits": '4:2:4',
             "nasOption.enable": True,
-            "nasOption.num_cpus": 16,
+            "nasOption.num_cpus": 8,
             "nasOption.num_gpus": 1,
             "nasOption.search_strategy": "random",
             "nasOption.backend": "no_report",
             "nasOption.num_samples": 1,
             "modelBaseConfig.label_mode": "multilabel",
-            "modelBaseConfig.epochs": 40,
-            "modelBaseConfig.patience": 40,
+            "modelBaseConfig.epochs": 100,
+            "modelBaseConfig.patience": 100,
             "modelBaseConfig.label_smoothing": 0.2,
             "modelBaseConfig.lr": 1e-3,
             "modelBaseConfig.weight_decay": 1e-3,
             "modelBaseConfig.batch_size": 128,
             "modelBaseConfig.val_batch_size": 512,
             "modelBaseConfig.test_batch_size": 512,
+            "modelBaseConfig.lr_scheduler": 'none',
             # "trainerOption.limit_train_batches": 0.1,
             # "trainerOption.limit_val_batches": 0.1,
             # "trainerOption.limit_test_batches": 0.1,

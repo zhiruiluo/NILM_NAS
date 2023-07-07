@@ -30,21 +30,20 @@ def trainable_wrapper(config: dict, args: MyProgramArgs):
 
 
 def loop(args: MyProgramArgs):
-    metric = "val_acc"
-    mode = "max"
 
     space = {
         "datasetConfig": {
-            "combine_mains": tune.grid_search([True]),
             "imbalance_sampler": tune.grid_search([False]),
-            "win_size": tune.grid_search([30, 150, 300]),
-            "stride": tune.grid_search([5]),
+            "win_size": tune.grid_search([60, 150, 300]),
+            "stride": tune.grid_search([30]),
+            "house_no": tune.grid_search([2]),
+            "drop_na_how": 'any',
         },
         "modelConfig": {
-            "n_estimators": tune.grid_search([100]),
-            "max_depth": tune.grid_search([None]),  # [10,50,90,None]
-            "min_samples_split": tune.grid_search([2]),  # [2,5,10]
-            "min_samples_leaf": tune.grid_search([1]),  # [1,2,4]
+            "n_neighbors": tune.grid_search([3,5]),
+            "weights": tune.grid_search(['uniform','distance']),
+            "algorithm": tune.grid_search(["auto"]),
+            "leaf_size": tune.grid_search([30,20,40]),
         },
     }
 
@@ -58,10 +57,7 @@ def loop(args: MyProgramArgs):
     tuner = tune.Tuner(
         trainable_resource,
         tune_config=tune.TuneConfig(
-            # mode=mode,
-            # metric=metric,
-            # search_alg=BayesOptSearch(),
-            num_samples=args.nasOption.num_samples,
+            num_samples=1,
             chdir_to_trial_dir=False,
             reuse_actors=False,
         ),
@@ -77,12 +73,12 @@ def loop(args: MyProgramArgs):
 
 
 @slurm_launch(
-    exp_name="ML_RF",
-    num_nodes=1,
+    exp_name="MLkNN",
+    num_nodes=2,
     num_gpus=0,
     partition="epscor",
+    log_dir='logging/UKDALE_424/',
     load_env="conda activate p39c116\n"
-    + "export OMP_NUM_THREADS=10\n"
     + "export PL_DISABLE_FORK=1",
     command_suffix="--address='auto' --exp_name={{EXP_NAME}}",
 )
@@ -91,16 +87,15 @@ def main():
     opt = OptionManager()
     args = opt.replace_params(
         {
-            "modelConfig": "RF",
-            "datasetConfig": "REDD_multilabel",
+            "modelConfig": "KNC",
+            "datasetConfig": "UKDALE_multilabel",
+            "datasetConfig.splits": "4:2:4",
             "nasOption.enable": True,
-            "nasOption.num_cpus": 8,
+            "nasOption.num_cpus": 2,
             "nasOption.num_gpus": 0,
             "nasOption.search_strategy": "random",
             "nasOption.backend": "no_report",
             "nasOption.num_samples": 1,
-            "datasetConfig.win_size": 300,
-            "datasetConfig.stride": 60,
             "modelBaseConfig.label_mode": "multilabel",
             # "trainerOption.limit_train_batches": 0.1,
             # "trainerOption.limit_val_batches": 0.1,

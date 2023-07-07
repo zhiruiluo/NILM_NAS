@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import sys
-
-sys.path.append(".")
 import functools
 import logging
 import os
-
+import sys
+sys.path.append(".")
 import ray
 from ray import tune
 from ray.air import RunConfig
@@ -17,6 +15,8 @@ from src.config_options.options import OptionManager, replace_consistant
 from src.database.Persistence import PersistenceFactory
 from src.project_logging import LoggerManager
 from src.trainer.TraningManager import trainable
+
+
 
 
 logger = logging.getLogger(__name__)
@@ -30,22 +30,21 @@ def trainable_wrapper(config: dict, args: MyProgramArgs):
 
 
 def loop(args: MyProgramArgs):
-    metric = "val_acc"
-    mode = "max"
-
+    
     space = {
         "datasetConfig": {
-            "combine_mains": tune.grid_search([True]),
             "imbalance_sampler": tune.grid_search([False]),
-            # "win_size": tune.grid_search([60, 150, 300]),
-            "win_size": tune.grid_search([60]),
-            "stride": tune.grid_search([1]),
-            "house_no": tune.grid_search([1,2,3,5]),
-            "drop_na_how": tune.grid_search(['any'])
+            "win_size": tune.grid_search([60, 150, 300]),
+            "stride": tune.grid_search([30]),
+            "house_no": tune.grid_search([2]),
+            "drop_na_how": 'any',
         },
-        # "modelConfig": {
-            
-        # }
+        "modelConfig": {
+            "in_chan": 1,
+            "num_layers": tune.grid_search([2,4]),
+            "hidden_size": tune.grid_search([64]),
+            "head_type": tune.grid_search(['ASL'])
+        }
     }
 
     trainable_partial = functools.partial(trainable_wrapper, args=args)
@@ -58,9 +57,6 @@ def loop(args: MyProgramArgs):
     tuner = tune.Tuner(
         trainable_resource,
         tune_config=tune.TuneConfig(
-            # mode=mode,
-            # metric=metric,
-            # search_alg=BayesOptSearch(),
             num_samples=args.nasOption.num_samples,
             chdir_to_trial_dir=False,
             reuse_actors=False,
@@ -77,10 +73,11 @@ def loop(args: MyProgramArgs):
 
 
 @slurm_launch(
-    exp_name="ML_MLkNN_dep",
+    exp_name="LSTMAE",
     num_nodes=1,
-    num_gpus=0,
+    num_gpus=2,
     partition="epscor",
+    log_dir='logging/UKDALE_424/',
     load_env="conda activate p39c116\n"
     + "export OMP_NUM_THREADS=10\n"
     + "export PL_DISABLE_FORK=1",
@@ -91,18 +88,28 @@ def main():
     opt = OptionManager()
     args = opt.replace_params(
         {
-            "modelConfig": "MLkNN",
-            "datasetConfig": "REDD_multilabel",
+            "modelConfig": "LSTM_AE",
+            "datasetConfig": "UKDALE_multilabel",
+            "datasetConfig.splits": '4:2:4',
             "nasOption.enable": True,
             "nasOption.num_cpus": 8,
-            "nasOption.num_gpus": 0,
+            "nasOption.num_gpus": 1,
             "nasOption.search_strategy": "random",
             "nasOption.backend": "no_report",
             "nasOption.num_samples": 1,
             "modelBaseConfig.label_mode": "multilabel",
+            "modelBaseConfig.epochs": 100,
+            "modelBaseConfig.patience": 100,
+            "modelBaseConfig.label_smoothing": 0.2,
+            "modelBaseConfig.lr": 1e-3,
+            "modelBaseConfig.weight_decay": 1e-3,
+            "modelBaseConfig.batch_size": 128,
+            "modelBaseConfig.val_batch_size": 512,
+            "modelBaseConfig.test_batch_size": 512,
             # "trainerOption.limit_train_batches": 0.1,
             # "trainerOption.limit_val_batches": 0.1,
             # "trainerOption.limit_test_batches": 0.1,
+            "modelBaseConfig.lr_scheduler": 'none',
         },
     )
     persistance = PersistenceFactory(

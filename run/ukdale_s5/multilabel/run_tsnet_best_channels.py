@@ -28,20 +28,19 @@ def trainable_wrapper(config: dict, args: MyProgramArgs):
     return trainable(config)
 
 def parse_best_tsnet_json():
-    with open('./run/multilabel/best_tsnet.json', mode='r') as fp:
+    with open('./run/ukdale/multilabel/best_f1macro_424.json', mode='r') as fp:
         list_tsnets = json.load(fp)
         
     return list_tsnets
     
 
-def get_bit_string(spec, list_tsnets: list):
+def get_best_config(spec, list_tsnets: list, key: str):
     win_size = spec.config.datasetConfig.win_size
-    # stride = spec.config.datasetConfig.stride
     house_no = spec.config.datasetConfig.house_no
     
     for tsnet in list_tsnets:
-        if tsnet['house_no'] == house_no and tsnet['win_size'] == win_size:
-            return tsnet['bit_string']
+        if tsnet['house_no'] == str(house_no) and tsnet['win_size'] == win_size:
+            return tsnet[key]
         
         
 def loop(args: MyProgramArgs):
@@ -49,23 +48,21 @@ def loop(args: MyProgramArgs):
     mode = "max"
 
     list_tsnets = parse_best_tsnet_json()
-    get_bit_string_partial = functools.partial(get_bit_string, list_tsnets=list_tsnets)
     
     space = {
         "datasetConfig": {
-            "combine_mains": tune.grid_search([True]),
-            "imbalance_sampler": tune.grid_search([True]),
+            "imbalance_sampler": tune.grid_search([False]),
             "win_size": tune.grid_search([60, 150, 300]),
-            "stride": tune.grid_search([5]),
-            "house_no": tune.grid_search([1,3]),
+            "stride": tune.grid_search([30]),
+            "house_no": tune.grid_search([2]),
         },
         "modelConfig":{
-            "n_phases": 4,
+            "n_phases": 3,
             "n_ops": 5,
-            "in_channels": tune.sample_from(lambda spec: 1 if spec.config.datasetConfig.combine_mains else 2),
-            "bit_string": tune.sample_from(get_bit_string_partial),
-            "out_channels": tune.grid_search([32,64,128,256]),
-            "head_type": "Focal",
+            "in_channels": 1,
+            "bit_string": tune.sample_from(functools.partial(get_best_config, list_tsnets=list_tsnets, key='bit_string')),
+            "out_channels": tune.sample_from(functools.partial(get_best_config, list_tsnets=list_tsnets, key='out_channels')),
+            "head_type": "ASL",
         } 
     }
 
@@ -98,12 +95,12 @@ def loop(args: MyProgramArgs):
 
 
 @slurm_launch(
-    exp_name="TSNET_ML_best",
-    num_nodes=4,
+    exp_name="TSNET",
+    num_nodes=1,
     num_gpus=2,
     partition="epscor",
+    log_dir="logging/UKDALE_424",
     load_env="conda activate p39c116\n"
-    + "export OMP_NUM_THREADS=10\n"
     + "export PL_DISABLE_FORK=1",
     command_suffix="--address='auto' --exp_name={{EXP_NAME}}",
 )
@@ -113,24 +110,25 @@ def main():
     args = opt.replace_params(
         {
             "modelConfig": "TSNet",
-            "datasetConfig": "REDD_multilabel",
+            "datasetConfig": "UKDALE_multilabel",
+            "trainerOption.monitor": 'val_f1macro',
+            "trainerOption.mode": "max",
             "nasOption.enable": True,
-            "nasOption.num_cpus": 16,
+            "nasOption.num_cpus": 8,
             "nasOption.num_gpus": 1,
             "nasOption.search_strategy": "random",
             "nasOption.backend": "no_report",
             "nasOption.num_samples": 1,
-            "datasetConfig.win_size": 60,
-            "datasetConfig.stride": 30,
             "modelBaseConfig.label_mode": "multilabel",
-            "modelBaseConfig.epochs": 20,
-            "modelBaseConfig.patience": 20,
+            "modelBaseConfig.epochs": 100,
+            "modelBaseConfig.patience": 100,
             "modelBaseConfig.label_smoothing": 0.2,
             "modelBaseConfig.lr": 1e-3,
             "modelBaseConfig.weight_decay": 1e-3,
             "modelBaseConfig.batch_size": 128,
             "modelBaseConfig.val_batch_size": 512,
             "modelBaseConfig.test_batch_size": 512,
+            "modelBaseConfig.lr_scheduler": 'none',
             # "trainerOption.limit_train_batches": 0.1,
             # "trainerOption.limit_val_batches": 0.1,
             # "trainerOption.limit_test_batches": 0.1,

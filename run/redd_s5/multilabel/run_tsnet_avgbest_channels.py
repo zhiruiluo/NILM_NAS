@@ -15,8 +15,7 @@ from src.config_options.options import OptionManager, replace_consistant
 from src.database.Persistence import PersistenceFactory
 from src.project_logging import LoggerManager
 from src.trainer.TraningManager import trainable
-
-
+import json
 
 
 logger = logging.getLogger(__name__)
@@ -28,23 +27,44 @@ def trainable_wrapper(config: dict, args: MyProgramArgs):
     # config['args'].modelConfig = space_to_model_config(config['modelConfig'])
     return trainable(config)
 
+def parse_best_tsnet_json():
+    with open('./run/redd/multilabel/best_avg_f1macro_424.json', mode='r') as fp:
+        list_tsnets = json.load(fp)
+        
+    return list_tsnets
+    
 
+def get_best_config(spec, list_tsnets: list, key: str):
+    win_size = spec.config.datasetConfig.win_size
+    house_no = spec.config.datasetConfig.house_no
+    
+    for tsnet in list_tsnets:
+        if tsnet['house_no'] == str(house_no):
+            return tsnet[key]
+        
+        
 def loop(args: MyProgramArgs):
+    metric = "val_acc"
+    mode = "max"
+
+    list_tsnets = parse_best_tsnet_json()
     
     space = {
         "datasetConfig": {
+            "combine_mains": tune.grid_search([True]),
             "imbalance_sampler": tune.grid_search([False]),
             "win_size": tune.grid_search([60, 150, 300]),
-            "stride": tune.grid_search([30]),
-            "house_no": tune.grid_search([2]),
-            "drop_na_how": 'any',
+            "stride": tune.grid_search([5]),
+            "house_no": tune.grid_search([1,3]),
         },
-        "modelConfig": {
-            "in_chan": 1,
-            "num_layers": tune.grid_search([2,4]),
-            "hidden_size": tune.grid_search([64]),
-            "head_type": tune.grid_search(['ASL'])
-        }
+        "modelConfig":{
+            "n_phases": 3,
+            "n_ops": 5,
+            "in_channels": tune.sample_from(lambda spec: 1 if spec.config.datasetConfig.combine_mains else 2),
+            "bit_string": tune.sample_from(functools.partial(get_best_config, list_tsnets=list_tsnets,key='bit_string')),
+            "out_channels": tune.sample_from(functools.partial(get_best_config, list_tsnets=list_tsnets,key='out_channels')),
+            "head_type": "ASL",
+        } 
     }
 
     trainable_partial = functools.partial(trainable_wrapper, args=args)
@@ -57,6 +77,9 @@ def loop(args: MyProgramArgs):
     tuner = tune.Tuner(
         trainable_resource,
         tune_config=tune.TuneConfig(
+            # mode=mode,
+            # metric=metric,
+            # search_alg=BayesOptSearch(),
             num_samples=args.nasOption.num_samples,
             chdir_to_trial_dir=False,
             reuse_actors=False,
@@ -73,13 +96,12 @@ def loop(args: MyProgramArgs):
 
 
 @slurm_launch(
-    exp_name="LSTMAE",
+    exp_name="TSNET_avg",
     num_nodes=1,
     num_gpus=2,
     partition="epscor",
-    log_dir='logging/UKDALE_424/',
+    log_dir='logging/REDD_424_5',
     load_env="conda activate p39c116\n"
-    + "export OMP_NUM_THREADS=10\n"
     + "export PL_DISABLE_FORK=1",
     command_suffix="--address='auto' --exp_name={{EXP_NAME}}",
 )
@@ -88,9 +110,8 @@ def main():
     opt = OptionManager()
     args = opt.replace_params(
         {
-            "modelConfig": "LSTM_AE",
-            "datasetConfig": "UKDALE_multilabel",
-            "datasetConfig.splits": '4:2:4',
+            "modelConfig": "TSNet",
+            "datasetConfig": "REDD_multilabel",
             "nasOption.enable": True,
             "nasOption.num_cpus": 8,
             "nasOption.num_gpus": 1,
@@ -106,10 +127,10 @@ def main():
             "modelBaseConfig.batch_size": 128,
             "modelBaseConfig.val_batch_size": 512,
             "modelBaseConfig.test_batch_size": 512,
+            "modelBaseConfig.lr_scheduler": 'none',
             # "trainerOption.limit_train_batches": 0.1,
             # "trainerOption.limit_val_batches": 0.1,
             # "trainerOption.limit_test_batches": 0.1,
-            "modelBaseConfig.lr_scheduler": 'none',
         },
     )
     persistance = PersistenceFactory(
@@ -132,7 +153,7 @@ def main():
         )
     else:
         ray.init()
-
+    
     loop(args)
 
 

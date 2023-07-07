@@ -58,79 +58,80 @@ class RayParallelization:
             return rets
         except ray.exceptions.RayTaskError as e:
             print(e)
-            self.ray_shutdown()   
+            self.ray_shutdown()
+        
 
     def __getstate__(self):
         state = self.__dict__.copy()
         return state
 
-# class RayParallelization:
-#     def __init__(self, job_resources={}, max_pending_task=2) -> None:
-#         super().__init__()
-#         self.job_resources = job_resources
-#         self.max_num_pending_tasks = max_pending_task
-#         self.max_retries = 3
+class RayParallelization_:
+    def __init__(self, job_resources={}, max_pending_task=4) -> None:
+        super().__init__()
+        self.job_resources = job_resources
+        self.max_num_pending_tasks = max_pending_task
+        self.max_retries = 3
         
-#         self.pending_refs = []
-#         self.ready_results = {}
-#         self.registered_tasks = []
+        self.pending_refs = []
+        self.ready_results = {}
+        self.registered_tasks = []
 
-#     def _wait_refs(self, future_refs):
-#         ready_results = {}
-#         for i in range(self.max_retries+1):
-#             try:
-#                 ready_refs, pending_refs = ray.wait(future_refs,
-#                                                         num_returns=1)
-#                 ready_results[ready_refs[0]] = ray.get(ready_refs)[0]
-#                 return ready_results, pending_refs
-#             except ray.exceptions.WorkerCrashedError:
-#                 print(f'WorkerCrashedError catched! Runner is retrying for {i} time!')
+    def _wait_refs(self, future_refs):
+        ready_results = {}
+        for i in range(self.max_retries+1):
+            try:
+                ready_refs, pending_refs = ray.wait(future_refs,
+                                                        num_returns=1)
+                ready_results[ready_refs[0]] = ray.get(ready_refs)[0]
+                return ready_results, pending_refs
+            except ray.exceptions.WorkerCrashedError:
+                print(f'WorkerCrashedError catched! Runner is retrying for {i} time!')
                 
-#             time.sleep(2)
-#         raise TimeoutError('ray.exceptions.WorkerCrashedError! Max retries reached!')
+            time.sleep(2)
+        raise TimeoutError('ray.exceptions.WorkerCrashedError! Max retries reached!')
         
-#     def _preprocess(self):
-#         self.pending_refs = []
-#         self.ready_results = {}
+    def _preprocess(self):
+        self.pending_refs = []
+        self.ready_results = {}
     
-#     def _postprocess(self):
-#         self.registered_tasks = []
-#         self.pending_refs = []
-#         self.ready_results = {}
+    def _postprocess(self):
+        self.registered_tasks = []
+        self.pending_refs = []
+        self.ready_results = {}
 
-#     def __call__(self, f, X):
-#         self._preprocess()
+    def __call__(self, f, X):
+        self._preprocess()
         
-#         runnable = ray.remote(f.__call__.__func__)
-#         runnable = runnable.options(**self.job_resources)
+        runnable = ray.remote(f.__call__.__func__)
+        runnable = runnable.options(**self.job_resources)
         
-#         if len(self.registered_tasks) == 0:
-#             for x in X:
-#                 ref = runnable.remote(f,x)
-#                 self.registered_tasks.append((ref, x))
+        if len(self.registered_tasks) == 0:
+            for x in X:
+                ref = runnable.remote(f,x)
+                self.registered_tasks.append((ref, x))
         
-#         for ref, x in self.registered_tasks:
-#             if len(self.pending_refs) > self.max_num_pending_tasks:
-#                 ready_results, self.pending_refs = self._wait_refs(self.pending_refs)
-#                 self.ready_results.update(ready_results)
-#                 print(f'[RayParallelization] pending tasks {len(self.pending_refs)} | finished tasks {len(self.ready_results)}')
-#             self.pending_refs.append(ref)
+        for ref, x in self.registered_tasks:
+            if len(self.pending_refs) > self.max_num_pending_tasks:
+                ready_results, self.pending_refs = self._wait_refs(self.pending_refs)
+                self.ready_results.update(ready_results)
+                print(f'[RayParallelization] pending tasks {len(self.pending_refs)} | finished tasks {len(self.ready_results)}')
+            self.pending_refs.append(ref)
         
-#         while len(self.pending_refs) > 0:
-#             ready_results, self.pending_refs = self._wait_refs(self.pending_refs)
-#             self.ready_results.update(ready_results)
-#             print(f'[RayParallelization] pending tasks {len(self.pending_refs)} | finished tasks {len(self.ready_results)}')
+        while len(self.pending_refs) > 0:
+            ready_results, self.pending_refs = self._wait_refs(self.pending_refs)
+            self.ready_results.update(ready_results)
+            print(f'[RayParallelization] pending tasks {len(self.pending_refs)} | finished tasks {len(self.ready_results)}')
         
-#         rets = []
-#         for ref, _ in self.registered_tasks:
-#             rets.append(self.ready_results[ref])
+        rets = []
+        for ref, _ in self.registered_tasks:
+            rets.append(self.ready_results[ref])
         
-#         self._postprocess()
-#         return rets
+        self._postprocess()
+        return rets
 
-#     def __getstate__(self):
-#         state = self.__dict__.copy()
-#         return state
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        return state
 
 class StatefulLoop():
     def __init__(self, args: MyProgramArgs, parameter_grid: dict) -> None:
@@ -149,7 +150,7 @@ class StatefulLoop():
         
         searcher = Searcher(args)
         searcher.search()
-                
+    
     def run(self):
         while self.iteration_idx < self.length_grid:
             param = self.parameter_grid[self.iteration_idx]
@@ -179,8 +180,7 @@ class StatefulLoop():
                 if args: obj.args = args
                 if parameter_grid: obj.parameter_grid = ParameterGrid(parameter_grid)
                 return obj
-            
-            
+
 class Searcher():
     def __init__(self, args: MyProgramArgs) -> None:
         self.args = args
@@ -191,17 +191,19 @@ class Searcher():
         # if os.environ.get("head_node_ip", None):
         #     ray.init(
         #         address=args.systemOption.address,
+        #         # object_store_memory=2*(1024**3),
         #         _node_ip_address=os.environ["head_node_ip"],
         #     )
         # else:
-        #     ray.init(num_cpus=8)
+        #     ray.init(resources={})
     
         runner = RayParallelization(
-            address=args.systemOption.address,
+            address=self.args.systemOption.address,
             job_resources={
-            'num_cpus': self.args.nasOption.num_cpus,
-            'num_gpus': self.args.nasOption.num_gpus},
-            # 'memory': 40*1024*1024*1024},
+                'num_cpus': self.args.nasOption.num_cpus,
+                'num_gpus': self.args.nasOption.num_gpus,
+                'max_retries': 5},
+            # 'memory': 30*1024*1024*1024},
             # max_pending_task=10,
         )
         
@@ -211,8 +213,8 @@ class Searcher():
         if checkpoint and checkpoint.has_checkpoint():
             algorithm = checkpoint.load_checkpoint()
         
-        res = minimize(problem, algorithm, ('n_gen', N_GEN), seed=1,
-                    verbose=True, save_history=True, copy_termination=False, copy_algorithm=False, callback=do_every_generations)
+        res = minimize(problem, algorithm, ('n_gen', N_GEN), copy_algorithm=False, copy_termination=False,seed=1,
+                    verbose=True, save_history=True, callback=do_every_generations)
             
         print("Threads:", res.exec_time, "res", res.F)
         logger.info(f"Threads: {res.exec_time} res {res.F}")
@@ -223,13 +225,13 @@ class Searcher():
 
 
 @slurm_launch(
-    exp_name='GDh2',
-    num_nodes=2,
+    exp_name='GD',
+    num_nodes=1,
     num_gpus=2,
     partition='epscor',
-    log_dir='logging/UKDALE_424/',
-    load_env="conda activate p39c116\n"
-    + "export OMP_NUM_THREADS=10\n"
+    log_dir='logging/REDD_424_5/',
+    load_env="conda activate p310\n"
+    # + "export OMP_NUM_THREADS=10\n"
     + "export PL_DISABLE_FORK=1",
     command_suffix="--address='auto' --exp_name={{EXP_NAME}}",
 )
@@ -239,8 +241,9 @@ def main():
         "trainerOption.verbose": False,
         "trainerOption.monitor": 'val_f1macro',
         "trainerOption.mode": "max",
-        "datasetConfig": "UKDALE_multilabel",
-        "datasetConfig.stride": 30,
+        "datasetConfig": "REDD_multilabel",
+        "datasetConfig.stride": 5,
+        "datasetConfig.combine_mains": True,
         "datasetConfig.imbalance_sampler": False,
         "datasetConfig.splits": '4:2:4',
         "modelConfig": "TSNet",
@@ -252,8 +255,8 @@ def main():
         "nasOption.num_cpus": 8,
         "nasOption.num_gpus": 1,
         "nasOption.backend": "no_report",
-        "modelBaseConfig.epochs": 25,
-        "modelBaseConfig.patience": 25,
+        "modelBaseConfig.epochs": 15,
+        "modelBaseConfig.patience": 15,
         "modelBaseConfig.label_mode": "multilabel",
         "modelBaseConfig.batch_size": 256,
         "modelBaseConfig.val_batch_size": 512,
@@ -275,8 +278,8 @@ def main():
     
     
     parameter_grid = {
-        "win_size": [60,150,300],
-        "house_no": [2],
+        "win_size": [60],
+        "house_no": [1],
     }
     
     ckp_path = Path(args.systemOption.exp_dir).joinpath('exp_checkpoint')

@@ -15,9 +15,8 @@ from src.config_options.options import OptionManager, replace_consistant
 from src.database.Persistence import PersistenceFactory
 from src.project_logging import LoggerManager
 from src.trainer.TraningManager import trainable
-
-
-
+import json
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -28,23 +27,59 @@ def trainable_wrapper(config: dict, args: MyProgramArgs):
     # config['args'].modelConfig = space_to_model_config(config['modelConfig'])
     return trainable(config)
 
+def parse_random_rank_csv():
+    with open('./run/ukdale/multilabel/random_rank_1.csv', mode='r') as fp:
+        df_rank = pd.read_csv(fp)
+    rank = []
+    for l, s in df_rank.iterrows():
+        rank.append(json.loads(s['modelConfig'])['bit_string'])
+    return rank
 
+def test_rank():
+    rank = parse_random_rank_csv()
+    print(rank)
+
+def get_bit_string(spec, list_tsnets: list):
+    win_size = spec.config.datasetConfig.win_size
+    # stride = spec.config.datasetConfig.stride
+    house_no = spec.config.datasetConfig.house_no
+    
+    for tsnet in list_tsnets:
+        if tsnet['house_no'] == house_no and tsnet['win_size'] == win_size:
+            return tsnet['bit_string']
+
+        
 def loop(args: MyProgramArgs):
+    metric = "val_acc"
+    mode = "max"
+
+    rank = parse_random_rank_csv()
     
     space = {
-        "datasetConfig": {
-            "imbalance_sampler": tune.grid_search([False]),
-            "win_size": tune.grid_search([60, 150, 300]),
-            "stride": tune.grid_search([30]),
-            "house_no": tune.grid_search([2]),
-            "drop_na_how": 'any',
+        "modelBaseConfig": {
+            # "lr": tune.sample_from(lambda spec: spec.config['modelBaseConfig']['batch_size']/64*1e-3),
+            "lr": 0.025,
+            # "optimizer": 'SGD',
+            # "lr_scheduler": "CosineAnnealingLR",
+            "batch_size": tune.grid_search([512]),
+            "epochs": tune.grid_search([50]),
+            "patience": tune.sample_from(lambda spec: spec.config['modelBaseConfig']['epochs'])
         },
-        "modelConfig": {
-            "in_chan": 1,
-            "num_layers": tune.grid_search([2,4]),
-            "hidden_size": tune.grid_search([64]),
-            "head_type": tune.grid_search(['ASL'])
-        }
+        "datasetConfig": {
+            "win_size": tune.grid_search([150]),
+            "stride": tune.grid_search([10]),
+            "house_no": tune.grid_search([2]),
+            "splits": "4:2:4",
+        },
+        "modelConfig":{
+            "n_phases": 3,
+            "n_ops": 4,
+            "in_channels": 1,
+            "bit_string": tune.grid_search(rank),
+            # "out_channels": tune.grid_search([16, 20, 24, 28, 32, 48, 64]),
+            "out_channels": tune.grid_search([32]),
+            "head_type": "ASL",
+        } 
     }
 
     trainable_partial = functools.partial(trainable_wrapper, args=args)
@@ -57,6 +92,9 @@ def loop(args: MyProgramArgs):
     tuner = tune.Tuner(
         trainable_resource,
         tune_config=tune.TuneConfig(
+            # mode=mode,
+            # metric=metric,
+            # search_alg=BayesOptSearch(),
             num_samples=args.nasOption.num_samples,
             chdir_to_trial_dir=False,
             reuse_actors=False,
@@ -73,11 +111,11 @@ def loop(args: MyProgramArgs):
 
 
 @slurm_launch(
-    exp_name="LSTMAE",
-    num_nodes=1,
+    exp_name="RK",
+    num_nodes=4,
     num_gpus=2,
     partition="epscor",
-    log_dir='logging/UKDALE_424/',
+    log_dir='logging/UKDALE_424',
     load_env="conda activate p39c116\n"
     + "export OMP_NUM_THREADS=10\n"
     + "export PL_DISABLE_FORK=1",
@@ -88,28 +126,29 @@ def main():
     opt = OptionManager()
     args = opt.replace_params(
         {
-            "modelConfig": "LSTM_AE",
+            "modelConfig": "TSNet",
             "datasetConfig": "UKDALE_multilabel",
-            "datasetConfig.splits": '4:2:4',
             "nasOption.enable": True,
-            "nasOption.num_cpus": 8,
+            "nasOption.num_cpus": 16,
             "nasOption.num_gpus": 1,
             "nasOption.search_strategy": "random",
             "nasOption.backend": "no_report",
             "nasOption.num_samples": 1,
+            "datasetConfig.win_size": 60,
+            "datasetConfig.stride": 30,
             "modelBaseConfig.label_mode": "multilabel",
-            "modelBaseConfig.epochs": 100,
-            "modelBaseConfig.patience": 100,
+            "modelBaseConfig.epochs": 20,
+            "modelBaseConfig.patience": 20,
             "modelBaseConfig.label_smoothing": 0.2,
             "modelBaseConfig.lr": 1e-3,
             "modelBaseConfig.weight_decay": 1e-3,
             "modelBaseConfig.batch_size": 128,
             "modelBaseConfig.val_batch_size": 512,
             "modelBaseConfig.test_batch_size": 512,
+            "modelBaseConfig.lr_scheduler": 'none',
             # "trainerOption.limit_train_batches": 0.1,
             # "trainerOption.limit_val_batches": 0.1,
             # "trainerOption.limit_test_batches": 0.1,
-            "modelBaseConfig.lr_scheduler": 'none',
         },
     )
     persistance = PersistenceFactory(
@@ -132,8 +171,8 @@ def main():
         )
     else:
         ray.init()
-
+    
     loop(args)
 
-
-main()
+if __name__ == '__main__':
+    main()

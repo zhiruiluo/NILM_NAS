@@ -15,35 +15,47 @@ from src.config_options.options import OptionManager, replace_consistant
 from src.database.Persistence import PersistenceFactory
 from src.project_logging import LoggerManager
 from src.trainer.TraningManager import trainable
-
-
+import json
 
 
 logger = logging.getLogger(__name__)
 
 
 def trainable_wrapper(config: dict, args: MyProgramArgs):
+    config.pop('model')
     os.sched_setaffinity(0, list(range(os.cpu_count())))
     config = replace_consistant(args, config)
-    # config['args'].modelConfig = space_to_model_config(config['modelConfig'])
     return trainable(config)
+    
 
-
+def parse_best_tsnet_json():
+    with open('./run/ukdale/multilabel/best_pf_f1macro_424.json', mode='r') as fp:
+        list_tsnets = json.load(fp)
+        
+    return list_tsnets
+    
+        
 def loop(args: MyProgramArgs):
+    metric = "val_acc"
+    mode = "max"
+
+    list_tsnets = parse_best_tsnet_json()
     
     space = {
+        "model": tune.grid_search(list_tsnets),
         "datasetConfig": {
             "imbalance_sampler": tune.grid_search([False]),
-            "win_size": tune.grid_search([60, 150, 300]),
+            "win_size": tune.sample_from(lambda spec: spec.config.model['win_size']),
             "stride": tune.grid_search([30]),
             "house_no": tune.grid_search([2]),
-            "drop_na_how": 'any',
         },
-        "modelConfig": {
-            "in_chan": 1,
-            "num_layers": tune.grid_search([2,4]),
-            "hidden_size": tune.grid_search([64]),
-            "head_type": tune.grid_search(['ASL'])
+        "modelConfig":{
+            "n_phases": 3,
+            "n_ops": 5,
+            "in_channels": 1,
+            "bit_string": tune.sample_from(lambda spec: spec.config.model['bit_string']),
+            "out_channels": tune.sample_from(lambda spec: spec.config.model['out_channels']),
+            "head_type": "ASL",
         }
     }
 
@@ -57,6 +69,9 @@ def loop(args: MyProgramArgs):
     tuner = tune.Tuner(
         trainable_resource,
         tune_config=tune.TuneConfig(
+            # mode=mode,
+            # metric=metric,
+            # search_alg=BayesOptSearch(),
             num_samples=args.nasOption.num_samples,
             chdir_to_trial_dir=False,
             reuse_actors=False,
@@ -73,13 +88,12 @@ def loop(args: MyProgramArgs):
 
 
 @slurm_launch(
-    exp_name="LSTMAE",
-    num_nodes=1,
+    exp_name="TSNET_pareto",
+    num_nodes=2,
     num_gpus=2,
     partition="epscor",
-    log_dir='logging/UKDALE_424/',
+    log_dir="logging/UKDALE_424",
     load_env="conda activate p39c116\n"
-    + "export OMP_NUM_THREADS=10\n"
     + "export PL_DISABLE_FORK=1",
     command_suffix="--address='auto' --exp_name={{EXP_NAME}}",
 )
@@ -88,9 +102,11 @@ def main():
     opt = OptionManager()
     args = opt.replace_params(
         {
-            "modelConfig": "LSTM_AE",
+            "modelConfig": "TSNet",
             "datasetConfig": "UKDALE_multilabel",
             "datasetConfig.splits": '4:2:4',
+            "trainerOption.monitor": 'val_f1macro',
+            "trainerOption.mode": "max",
             "nasOption.enable": True,
             "nasOption.num_cpus": 8,
             "nasOption.num_gpus": 1,
@@ -106,10 +122,10 @@ def main():
             "modelBaseConfig.batch_size": 128,
             "modelBaseConfig.val_batch_size": 512,
             "modelBaseConfig.test_batch_size": 512,
+            "modelBaseConfig.lr_scheduler": 'none',
             # "trainerOption.limit_train_batches": 0.1,
             # "trainerOption.limit_val_batches": 0.1,
             # "trainerOption.limit_test_batches": 0.1,
-            "modelBaseConfig.lr_scheduler": 'none',
         },
     )
     persistance = PersistenceFactory(
@@ -132,7 +148,7 @@ def main():
         )
     else:
         ray.init()
-
+    
     loop(args)
 
 

@@ -84,7 +84,6 @@ def loop(args: MyProgramArgs):
     partition="epscor",
     log_dir='logging/REDD_424/',
     load_env="conda activate p39c116\n"
-    + "export OMP_NUM_THREADS=10\n"
     + "export PL_DISABLE_FORK=1",
     command_suffix="--address='auto' --exp_name={{EXP_NAME}}",
 )
@@ -97,7 +96,7 @@ def main():
             "datasetConfig": "REDD_multilabel",
             "datasetConfig.splits": '4:2:4',
             "nasOption.enable": True,
-            "nasOption.num_cpus": 4,
+            "nasOption.num_cpus": 2,
             "nasOption.num_gpus": 0,
             "nasOption.search_strategy": "random",
             "nasOption.backend": "no_report",

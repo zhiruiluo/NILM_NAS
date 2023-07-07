@@ -148,7 +148,7 @@ class LightningBaseModule(pl.LightningModule):
             scheduler = StepLR(optimizer, step_size=7)
             return {'optimizer': optimizer, 'lr_scheduler': scheduler}
         elif self.args.modelBaseConfig.lr_scheduler == 'CosineAnnealingLR':
-            scheduler = CosineAnnealingLR(optimizer, T_max=5)
+            scheduler = CosineAnnealingLR(optimizer, T_max=10)
             return {'optimizer': optimizer, 'lr_scheduler': scheduler}
         else:
             raise ValueError('Learning rate scheduler is invalid')

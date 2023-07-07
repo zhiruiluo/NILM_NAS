@@ -54,13 +54,12 @@ class RayParallelization:
         
         try:
             rets = ray.get(futures)
-            print(rets)
-            logger.info(rets)
+            self.ray_shutdown()
             return rets
         except ray.exceptions.RayTaskError as e:
             print(e)
-            
-        self.ray_shutdown()
+            self.ray_shutdown()
+        
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -209,7 +208,7 @@ class Searcher():
         )
         
         problem, algorithm, checkpoint = get_tsnet_problem_with_channels(
-            args, pop_size=POP_SIZE, monitor=args.trainerOption.monitor, mode=args.trainerOption.mode, elementwise_runner=runner, checkpoint_flag=False, debug=False)
+            args, pop_size=POP_SIZE, monitor=args.trainerOption.monitor, mode=args.trainerOption.mode, elementwise_runner=runner, checkpoint_flag=True, debug=False)
 
         if checkpoint and checkpoint.has_checkpoint():
             algorithm = checkpoint.load_checkpoint()
@@ -280,7 +279,7 @@ def main():
     
     parameter_grid = {
         "win_size": [300,150,60],
-        "house_no": [3,1],
+        "house_no": [1],
     }
     
     ckp_path = Path(args.systemOption.exp_dir).joinpath('exp_checkpoint')
