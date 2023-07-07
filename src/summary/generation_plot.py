@@ -272,17 +272,24 @@ class GenerationPlot():
                 color = next(colorlist)
                 
                 pareto_front = get_pareto_front(Xs, Ys, maxX, maxY)
-                pareto_front = add_mid_point_pareto_front(pareto_front, maxX, maxY)
+                pareto_front_mid = add_mid_point_pareto_front(pareto_front, maxX, maxY)
 
                 pf_X = [pair[0] for pair in pareto_front]
                 pf_Y = [pair[1] for pair in pareto_front]
                 
+                pf_X_mid = [pair[0] for pair in pareto_front_mid]
+                pf_Y_mid = [pair[1] for pair in pareto_front_mid]
+                
                 marker = next(marker_cycle)
                 
+                # plot all searched points
                 hd_1 = ax.scatter(Xs,Ys, s=4, color=color, label=label, marker=marker)
-                hd_2 = ax.plot(pf_X, pf_Y, color=color, label=label, markersize=4, marker=marker,
+                # plot pareto front line
+                hd_2 = ax.plot(pf_X_mid, pf_Y_mid, color=color, label=label,
                                linewidth=1, linestyle=next(linestyle_cycle))
-                hds.append((hd_1,hd_2[0]))
+                # plot pareto front points
+                hd_3 = ax.scatter(pf_X, pf_Y, color=color, label=label, s=12, marker=marker)
+                hds.append((hd_1,hd_2[0],hd_3))
 
             ax.margins(0.2,0.1)            
             ax.grid(visible=True, which='major', axis='both')
