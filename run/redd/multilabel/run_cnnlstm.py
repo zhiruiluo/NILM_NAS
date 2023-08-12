@@ -44,7 +44,7 @@ def loop(args: MyProgramArgs):
         },
         "modelConfig": {
             "in_chan": tune.sample_from(lambda spec: 1 if spec.config["datasetConfig"]["combine_mains"] else 2),
-            "out_features": tune.grid_search([64]),
+            "out_features": tune.grid_search([32]),
             "head_type": 'ASL',
         }
     }
@@ -79,7 +79,7 @@ def loop(args: MyProgramArgs):
 
 @slurm_launch(
     exp_name="CNNLSTM",
-    num_nodes=1,
+    num_nodes=2,
     num_gpus=2,
     partition="epscor",
     log_dir="logging/REDD_424/",

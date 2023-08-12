@@ -110,6 +110,9 @@ class ModelConfig_TSNet(LightningModel):
     out_channels: int | list = 32
     dropout: float = 0.5
     head_type: str = 'Focal'
+    lstm_out_features: int = 0
+    lstm_hidden_features: int = 32
+    atten: bool = False
 
 
 @dataclasses.dataclass

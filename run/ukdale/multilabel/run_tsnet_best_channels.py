@@ -63,6 +63,8 @@ def loop(args: MyProgramArgs):
             "bit_string": tune.sample_from(functools.partial(get_best_config, list_tsnets=list_tsnets, key='bit_string')),
             "out_channels": tune.sample_from(functools.partial(get_best_config, list_tsnets=list_tsnets, key='out_channels')),
             "head_type": "ASL",
+            "atten": True,
+            "lstm_out_features": tune.grid_search([32]),
         } 
     }
 
@@ -95,8 +97,8 @@ def loop(args: MyProgramArgs):
 
 
 @slurm_launch(
-    exp_name="TSNET",
-    num_nodes=1,
+    exp_name="TSNET_at_lstm",
+    num_nodes=2,
     num_gpus=2,
     partition="epscor",
     log_dir="logging/UKDALE_424",

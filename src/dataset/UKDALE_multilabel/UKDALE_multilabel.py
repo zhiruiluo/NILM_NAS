@@ -298,7 +298,7 @@ class UKDALE_multilabel(pl.LightningDataModule):
 
     def prepare_data(self):
         folder = get_project_root().joinpath(".temp").as_posix()
-
+        print(self.config.appliances)
         house_no = f'house_{self.config.house_no}'
         selected_channels = [
             appliances[house_no][app_name_mapper[house_no][app]] for app in self.config.appliances
@@ -497,7 +497,7 @@ def test_label_count():
     from src.config_options import OptionManager
     opt = OptionManager()
     args = opt.replace_params({'datasetConfig': 'UKDALE_multilabel',
-                               'datasetConfig.splits': '3:3:4',
+                               'datasetConfig.splits': '4:2:4',
                                'datasetConfig.house_no':2,
                                'datasetConfig.stride': 30,
                                'datasetConfig.win_size': 60})
@@ -506,37 +506,40 @@ def test_label_count():
     ds.prepare_data()
     ds.setup("fit")
     
-    positive = np.array([0,0,0,0,0], dtype=np.float64)
-    negative = np.array([0,0,0,0,0], dtype=np.float64)
+    positive_train = np.array([0,0,0,0,0], dtype=np.int32)
+    negative_train = np.array([0,0,0,0,0], dtype=np.int32)
     for batch in ds.train_dataloader():
         npa = batch['target'].numpy()
-        s = npa.sum(axis=0)
-        positive += s
-        negative += npa.shape[0] - s
+        s = npa.sum(axis=0).astype(np.int32)
+        positive_train += s
+        negative_train += npa.shape[0] - s
         
-    print(positive, negative)
+    print(positive_train, negative_train)
     
-    positive = np.array([0,0,0,0,0], dtype=np.float64)
-    negative = np.array([0,0,0,0,0], dtype=np.float64)
+    positive_val = np.array([0,0,0,0,0], dtype=np.int32)
+    negative_val = np.array([0,0,0,0,0], dtype=np.int32)
     for batch in ds.val_dataloader():
         npa = batch['target'].numpy()
-        s = npa.sum(axis=0)
-        positive += s
-        negative += npa.shape[0] - s
+        s = npa.sum(axis=0).astype(np.int32)
+        positive_val += s
+        negative_val += npa.shape[0] - s
         
-    print(positive, negative)
+    
     
     ds.setup('test')
-    positive = np.array([0,0,0,0,0], dtype=np.float64)
-    negative = np.array([0,0,0,0,0], dtype=np.float64)
+    positive_test = np.array([0,0,0,0,0], dtype=np.int32)
+    negative_test = np.array([0,0,0,0,0], dtype=np.int32)
     for batch in ds.test_dataloader():
         npa = batch['target'].numpy()
-        s = npa.sum(axis=0)
-        positive += s
-        negative += npa.shape[0] - s
-        
-    print(positive, negative)
+        s = npa.sum(axis=0).astype(np.int32)
+        positive_test += s
+        negative_test += npa.shape[0] - s
 
+    print('train',positive_train, negative_train)
+    print('val  ', positive_val, negative_val)
+    print('test ',positive_test, negative_test)
+    
+    
 def test_visual():
     from src.config_options import OptionManager
 

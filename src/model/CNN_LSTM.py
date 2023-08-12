@@ -43,6 +43,7 @@ class LSTM_subnet(nn.Module):
         output, (hn, cn) = self.bilstm(x)
         output = rearrange(output, "b t (d h) -> b t h d", d=2)
         output = torch.sum(output, dim=3)
+        output = self.leaky_relu(output)
         _, (hn, cn) = self.lstm(output)
         return self.lazy_linear(hn[-1])
 

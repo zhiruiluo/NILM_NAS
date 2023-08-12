@@ -9,6 +9,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
+import datetime
 
 import pandas as pd
 import simple_parsing as sp
@@ -29,16 +30,21 @@ class Config:
     output: str
     exp_dir: str = None
     exp_names: List[str] = None
+    task: str = ''
     x_axis: str = 'flops'
     y_axis: str = 'val_f1macro'
     format: str = 'png'
+    mean_repeat: bool = False
 
 Model_Name_Mapping = {
     'BitcnNILM': 'BitcnNILM',
     'CNN_LSTM': 'CNNLSTM',
     'LSTM_AE': 'LSTMAE',
-    'TSNet': 'NILM-NAS'
+    'TSNet': 'NILM-NAS',
+    'KNC': 'MLkNN',
+    'MLSVM': 'MLSVM',
 }
+
 
 def get_pareto_front(Xs, Ys, maxX=True, maxY=True):
     sorted_list = sorted([[Xs[i], Ys[i]] for i in range(len(Xs))], reverse=maxX)
@@ -62,6 +68,14 @@ def add_mid_point_pareto_front(pareto_front: list, maxX=True, maxY=True):
             new_pareto_front.append([b[0],a[1]])
     new_pareto_front.append(pareto_front[-1])
     return new_pareto_front
+
+def get_hypervolume_front(Xs, Ys, reference_point, maxX=True, maxY=True):
+    pareto_front = get_pareto_front(Xs, Ys, maxX, maxY)
+    pareto_front = add_mid_point_pareto_front(pareto_front, maxX, maxY)
+    if not maxX and maxY:
+        pareto_front = [[pareto_front[0][0], reference_point[1]]] + pareto_front
+        pareto_front = pareto_front + [[reference_point[0], pareto_front[-1][1]]]
+    return pareto_front
 
 def plot_pareto_frontier(Xs, Ys, maxX=True, maxY=True, ax=None, color='r',label=None):
     pareto_front = get_pareto_front(Xs, Ys, maxX, maxY)
@@ -115,7 +129,7 @@ class GenerationPlot():
             dc['house_no'].append(data_params['house_no'])
             dc['win_size'].append(data_params['win_size'])
             dc['stride'].append(data_params['stride'])
-            dc['training_time'].append(r.training_time)
+            dc['training_time'].append(datetime.datetime.strptime(r.training_time, '%Y-%m-%d %H:%M:%S.%f')-datetime.datetime(1970,1,1))
             dc['n_gen'].append(nas_params.get('n_gen'))
             
         df = pd.DataFrame.from_dict(dc).reset_index(drop=True)
@@ -174,7 +188,7 @@ class GenerationPlot():
             
             fig.tight_layout()
             self.plot_dir.mkdir(parents=True, exist_ok=True)
-            path = self.plot_dir.joinpath(f'{Path(self.args.exp_dir[0]).name}_pareto_frontier_hn={keys[0]}_ws={keys[1]}.png')
+            path = self.plot_dir.joinpath(f'pareto_frontier_hn={keys[0]}_ws={keys[1]}.png')
             fig.savefig(path)
             print(f'save fig {path}')
             plt.close()
@@ -232,7 +246,7 @@ class GenerationPlot():
             self.plot_dir.mkdir(parents=True, exist_ok=True)
             # fig.suptitle('')
             
-            fig.savefig(self.plot_dir.joinpath(f'hypervolume_{keys[0]}_{keys[1]}.{self.args.format}'))
+            fig.savefig(self.plot_dir.joinpath(f'hypervolume_{self.args.y_axis}_{keys[0]}_{keys[1]}.{self.args.format}'))
             plt.close()
         
     def plot_pareto_front_all(self):
@@ -253,44 +267,60 @@ class GenerationPlot():
         for keys, df in self.df_all.groupby(by=['house_no','win_size']):
             colorlist = iter(plt.get_cmap('tab10').colors)
             marker_cycle = iter(['o','v','D','s','^','p'])
-            linestyle_cycle = iter([':','--','-'])
+            linestyle_cycle = iter([':','--','-','-'])
             fig, ax = plt.subplots(figsize=(5,5))
             pre_gen = 0
             hds = []
-            labels = ['Initial (n_gen<=1)','Middle (1<n_gen<=5)','End (5<n_gen<=10)']
-            for label, gen in zip(labels,[1,5,10]):
+            maxX = False
+            maxY = True
+            labels = ['Initial (n_gen<=1)','Middle (1<n_gen<=10)','End (10<n_gen<=20)']
+            # nadir point
+            reference_point = df[[self.args.x_axis,self.args.y_axis]].sort_values([self.args.x_axis,self.args.y_axis], ascending=[maxX,maxY]).iloc[0,:].tolist()
+            # worst point
+            reference_point = [df[self.args.x_axis].sort_values(ascending=maxX).iloc[0],df[self.args.y_axis].sort_values(ascending=maxY).iloc[0]]
+            print(reference_point)
+            for label, gen in zip(labels,[1,10,200]):
                 d = df.query(f'n_gen <= {gen} and n_gen > {pre_gen}')
                 # d = df.query(f'n_gen <= {gen}')
-                
+                if len(d) == 0:
+                    continue
                 pre_gen = gen
                 
                 Xs = d[self.args.x_axis].to_list()
                 Ys = d[self.args.y_axis].to_list()
-                maxX = False
-                maxY = True
+                
                 
                 color = next(colorlist)
                 
                 pareto_front = get_pareto_front(Xs, Ys, maxX, maxY)
-                pareto_front_mid = add_mid_point_pareto_front(pareto_front, maxX, maxY)
+                hv_front = get_hypervolume_front(Xs, Ys, reference_point, maxX, maxY)
 
                 pf_X = [pair[0] for pair in pareto_front]
                 pf_Y = [pair[1] for pair in pareto_front]
                 
-                pf_X_mid = [pair[0] for pair in pareto_front_mid]
-                pf_Y_mid = [pair[1] for pair in pareto_front_mid]
+                hvf_X = [pair[0] for pair in hv_front]
+                hvf_Y = [pair[1] for pair in hv_front]
                 
                 marker = next(marker_cycle)
                 
                 # plot all searched points
-                hd_1 = ax.scatter(Xs,Ys, s=4, color=color, label=label, marker=marker)
+                hd_1 = ax.scatter(Xs,Ys, s=2, color=color, label=label, marker=marker)
                 # plot pareto front line
-                hd_2 = ax.plot(pf_X_mid, pf_Y_mid, color=color, label=label,
+                hd_2 = ax.plot(hvf_X, hvf_Y, color=color, label=label,
                                linewidth=1, linestyle=next(linestyle_cycle))
                 # plot pareto front points
-                hd_3 = ax.scatter(pf_X, pf_Y, color=color, label=label, s=12, marker=marker)
+                hd_3 = ax.scatter(pf_X, pf_Y, color=color, label=label, s=20, marker=marker,zorder=3)
                 hds.append((hd_1,hd_2[0],hd_3))
 
+            Xs = df[self.args.x_axis].to_list()
+            Ys = df[self.args.y_axis].to_list()
+            pareto_front = get_pareto_front(Xs, Ys, maxX, maxY)
+            pf_X = [pair[0] for pair in pareto_front]
+            pf_Y = [pair[1] for pair in pareto_front]
+            hd_3 = ax.plot(pf_X, pf_Y, color=next(colorlist), label=label,
+                               linewidth=2, linestyle=next(linestyle_cycle))
+            hds.append(hd_3[0])
+            labels.append('Final Pareto Front')
             ax.margins(0.2,0.1)            
             ax.grid(visible=True, which='major', axis='both')
             ax.set_xscale('log')    
@@ -299,43 +329,33 @@ class GenerationPlot():
             
             ax.legend(hds, labels, loc='lower right', frameon=True)
             self.plot_dir.mkdir(parents=True, exist_ok=True)
-            path = self.plot_dir.joinpath(f'pareto_frontier_{keys[0]}_{keys[1]}.{self.args.format}')
+            path = self.plot_dir.joinpath(f'pareto_frontier_{self.args.y_axis}_{keys[0]}_{keys[1]}.{self.args.format}')
             fig.tight_layout()
+            print(f'save path {path}')
             fig.savefig(path)
             plt.close()
         
     def plot_comparsion_on_pareto(self):
         for keys, df in self.df_all.groupby(by=['house_no','win_size','dataset']):
-            points = []
             colorlist = iter(plt.get_cmap('tab10').colors)
             marker_cycle = iter(['o','s','D','v','^','p'])
             
-            fig, ax = plt.subplots(figsize=(4,4))
+            fig, ax = plt.subplots(figsize=(3,3))
             for k , df_m in df.groupby('model'):
-                print(k)
-                # if k == 'TSNet':
-                #     pareto_front = get_pareto_front_df(df_m, objectives=['flops','val_f1macro'],modes=['min','max'])
-                #     pf = pareto_front[['flops','test_f1macro']]
-                #     # points.append(pf)
-                #     ax.scatter(pf['flops'].to_list(),pf['test_f1macro'].to_list(), color=next(colorlist),marker=next(marker_cycle), label=k)
-                # else:
-                df_m = df_m.sort_values('val_f1macro')
+                df_m = df_m.sort_values('val_f1macro', ascending=False)
                 if k == 'TSNet':
-                    pf = df_m[['flops','test_f1macro']]
+                    pf = df_m[[self.args.x_axis,self.args.y_axis]]
                 else:
-                    pf = df_m[['flops','test_f1macro']].iloc[0:1]
-                # points.append(p)
-                print(pf)
-                ax.scatter(pf['flops'].to_list(),pf['test_f1macro'].to_list(), color=next(colorlist),marker=next(marker_cycle), label=Model_Name_Mapping[k])
-                # pd.concat(points).reset_index(index)
+                    pf = df_m[[self.args.x_axis,self.args.y_axis]].iloc[0:1]
+                ax.scatter(pf[self.args.x_axis].to_list(),pf[self.args.y_axis].to_list(), color=next(colorlist),marker=next(marker_cycle), label=Model_Name_Mapping[k], zorder=2)
             
             ax.set_xscale('log')
             ax.set_xlabel('FLOPs')
             ax.set_ylabel('Test F1-Macro')
             ax.grid(visible=True, which='major')
-            ax.legend(frameon=True, loc='lower right')
+            ax.legend(frameon=True, loc='upper right')
             
-            path = self.plot_dir.joinpath(f'comparison_pareto_{keys[0]}_{keys[1]}_{keys[2]}.{self.args.format}')
+            path = self.plot_dir.joinpath(f'comparison_pareto_{self.args.y_axis}_{keys[0]}_{keys[1]}_{keys[2]}.{self.args.format}')
             print("save fn", path)
             fig.savefig(path)
     
@@ -343,24 +363,42 @@ class GenerationPlot():
         redd_mapping = {0:'refrigerator', 1:'microwave', 2:'dishwasher', 3:'washer_dryer'}
         ukdale_mapping = {0:'kettle', 1:'refrigerator', 2:'microwave', 3:'dishwasher', 4:'washer_dryer'}
         
+        appliance_mapping = {'kettle':'Kettle','microwave':'MW', 'dishwasher': 'DW','washer_dryer': 'WM','refrigerator':'Fridge'}
+        
         for keys, df in self.df_all.groupby(by=['house_no','win_size','dataset']):
             dc_confmx = {}
             model_cnf = None
             for model, df_m in df.groupby('model'):
-                cnfmx = df_m.sort_values('val_f1macro').iloc[0]['test_confmx']
+                cnfmx = df_m.sort_values('test_f1macro',ascending=False).iloc[0]['test_confmx']
                 cnfmx = json.loads(cnfmx)
+                # print(cnfmx)
                 model_cnf = {}
                 for i, cf in enumerate(cnfmx):
-                    if len(cf) == 4:
-                        model_cnf[redd_mapping[i]] = cf
+                    if len(cnfmx) == 4:
+                        model_cnf[appliance_mapping[redd_mapping[i]]] = cf
                     else:
-                        model_cnf[ukdale_mapping[i]] = cf
-                dc_confmx[model] = model_cnf
+                        model_cnf[appliance_mapping[ukdale_mapping[i]]] = cf
+                dc_confmx[Model_Name_Mapping[model]] = model_cnf
             path = self.plot_dir.joinpath(f'confusion_matrix_{keys[0]}_{keys[1]}_{keys[2]}.{self.args.format}')
-            print(dc_confmx, len(dc_confmx), len(model_cnf))
-            plot_confusion_matrix_api(dc_confmx, len(dc_confmx), len(model_cnf), path, figsize=(6,6), show_absolute=True, show_normed=True)
+            # print(dc_confmx, len(dc_confmx), len(model_cnf))
+            model_list = ['MLSVM','MLkNN','LSTMAE','CNNLSTM','BitcnNILM','NILM-NAS']
+            plot_confusion_matrix_api(dc_confmx,model_list, len(dc_confmx), len(model_cnf), path, figsize=(len(dc_confmx), len(model_cnf)), show_absolute=True, show_normed=True)
     
-    # def plot 
+    def plot_gpu_wall_time(self):
+        # fig, ax = plt.subplots()
+        house_winsize = []
+        gpuwalltime = []
+        for keys , df in self.df_all.groupby(['house_no','win_size']):
+            k = f'house_{keys[0]}_ws_{keys[1]}'
+            house_winsize.append(k)
+            s = pd.to_timedelta(df['training_time']).sum()
+            gpuwalltime.append(s)
+        print(house_winsize)
+        print(gpuwalltime)
+        # ax.bar(house_winsize, gpuwalltime, label=house_winsize)
+        # path = self.plot_dir.joinpath(f'gpu_wall_time.{self.args.format}')
+        # print('save path', path)
+        # fig.savefig(path)
     
 def parse_config():
     args = sp.parse(Config)
@@ -369,13 +407,20 @@ def parse_config():
 if __name__ == '__main__':
     args = parse_config()
     gp = GenerationPlot(args)
-    if args.exp_dir and Path(args.exp_dir).joinpath('nas_results.db').is_file():
-        gp.plot_hypervolume()
-        gp.plot_pareto_front_by_generation()
-    elif args.exp_dir:
-        gp.plot_pareto_front_all()
-    elif args.exp_names:
-        gp.plot_comparsion_on_pareto()
-        gp.plot_all_cf()
     
-   
+    if args.task == 'plot':
+        gp.plot()
+    else:
+        if args.exp_dir and Path(args.exp_dir).joinpath('nas_results.db').is_file():
+            if args.task == 'walltime':
+                gp.plot_gpu_wall_time()
+            else:
+                gp.plot_hypervolume()
+                gp.plot_pareto_front_by_generation()
+        elif args.exp_dir:
+            gp.plot_pareto_front_all()
+        elif args.exp_names:
+            if args.task == 'comp_pf':
+                gp.plot_comparsion_on_pareto()
+            elif args.task == 'all_cnf':
+                gp.plot_all_cf()

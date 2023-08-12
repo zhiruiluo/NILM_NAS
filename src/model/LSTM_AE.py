@@ -85,12 +85,16 @@ class LSTM_AE(LightningBaseModule):
                 self.linear = MultilabelLinearFocal(hidden_size, config.nclass)
             elif config.head_type == 'SBCE':
                 self.linear = SharedBCELinear(hidden_size, config.nclass)
+            elif config.head_type == 'Plain':
+                self.linear = SharedBCEPlainLinear(hidden_size, config.nclass, 0.5)
             elif config.head_type == 'Mask':
                 self.linear = MultilabelLinearMask(hidden_size, config.nclass)
             elif config.head_type == 'ASL':
                 self.linear = MultilabelLinearASL(hidden_size, config.nclass)
             elif config.head_type == 'MaskFocal':
-                self.lienar = MultilabelLinearMaskFocal(hidden_size, config.nclass)
+                self.linear = MultilabelLinearMaskFocal(hidden_size, config.nclass)
+            elif config.head_type == 'Paper':
+                self.linear = HeadModule['MSE'](hidden_size, config.nclass, 0.5)
             else:
                 raise ValueError(f'invalid head type: {config.head_type}')
         
@@ -137,10 +141,11 @@ def test_lstm_ae():
     opt = OptionManager()
     args = opt.replace_params(
         {"modelConfig": "LSTM_AE", "modelBaseConfig.label_mode": "multilabel",'modelConfig.in_chan': 1,
-         "modelConfig.nclass": 4},
+         "modelConfig.nclass": 4, "modelConfig.head_type": 'Paper'},
     )
     model = LSTM_AE(args)
     model.eval()
     batch={'input': torch.randn(32, 600, 1),'target': torch.empty((32, 4), dtype=torch.long).random_(2),}
     out = model(batch)
     print(out['output'].shape)
+    print(out)

@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 
 from .operations import Identity
+from .attention import CBAM
 
 
 class Decoder(ABC):
@@ -206,7 +207,7 @@ class ConnAndOpsPhase(nn.Module):
                 )
 
         self.processors = nn.ModuleList(conv1x1s)
-        self.out = nn.Sequential(nn.BatchNorm1d(out_channels), nn.ReLU(inplace=True))
+        self.out = nn.Sequential(nn.BatchNorm1d(out_channels), nn.ReLU(inplace=True), CBAM(out_channels, ratio=8))
 
     @staticmethod
     def build_dependency_graph(gene):
@@ -284,7 +285,7 @@ class ConnAndOpsPhase(nn.Module):
 
 
 class ConnAndOpsDecoder(ChannelBasedDecoder):
-    def __init__(self, list_genome: list, channels: list, repeats=None):
+    def __init__(self, list_genome: list, channels: list, repeats=None, attention=False):
         super().__init__(list_genome, channels, repeats)
 
         if self._model is not None:
@@ -294,6 +295,7 @@ class ConnAndOpsDecoder(ChannelBasedDecoder):
             zip(self._genome, self._channels),
         ):
             phases.append(ConnAndOpsPhase(gene, in_channels, out_channels, idx))
+            # phases.append(CBAM(in_planes=out_channels, ratio=8))
 
         self._model = nn.Sequential(*self.build_layers(phases))
 

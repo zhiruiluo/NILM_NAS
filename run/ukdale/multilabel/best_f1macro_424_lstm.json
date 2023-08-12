@@ -1,0 +1,41 @@
+[
+    {
+        "dataset": "UKDALE_multilabel",
+        "house_no": "2",
+        "win_size": 60,
+        "bit_string": "111111101011110101010101000011100000011110110101010110010010100010110100111000",
+        "out_channels": [
+            64,
+            32,
+            32
+        ],
+        "lstm_hidden_features": 64,
+        "lstm_out_features": 32
+    },
+    {
+        "dataset": "UKDALE_multilabel",
+        "house_no": "2",
+        "win_size": 150,
+        "bit_string": "111101010101010000110101000111011000010110111101111010011011000000110110100000",
+        "out_channels": [
+            64,
+            64,
+            64
+        ],
+        "lstm_hidden_features": 64,
+        "lstm_out_features": 32
+    },
+    {
+        "dataset": "UKDALE_multilabel",
+        "house_no": "2",
+        "win_size": 300,
+        "bit_string": "101111010010100101001100100001110000011111001001111100011010010111011011100010",
+        "out_channels": [
+            32,
+            32,
+            64
+        ],
+        "lstm_hidden_features": 32,
+        "lstm_out_features": 64
+    }
+]

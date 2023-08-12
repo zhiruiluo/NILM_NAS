@@ -5,9 +5,11 @@ from .shared_bce_plain_linear import SharedBCEPlainLinear
 from .multilabel_linear_maskout import MultilabelLinearMask, MultilabelLinearMaskFocal
 from .multilabel_linear_asl import MultilabelLinearASL
 from .multilabel_sharelinear_asl import MultilabelSharedLinearASL
+from .shared_mse_linear import SharedMSELinear
 
 __all__ = [
     "SharedBCELinear",
+    "SharedMSELinear",
     "MultilabelLinear",
     "MultilabelLinearFocal",
     "SharedBCEPlainLinear",
@@ -26,4 +28,6 @@ HeadModule = {
     'MaskFocal': lambda in_dim, nclass, dropout: MultilabelLinearMaskFocal(in_dim, nclass, dropout),
     'ASL': lambda in_dim, nclass, dropout : MultilabelLinearASL(in_dim, nclass, dropout),
     'SASL': lambda in_dim, nclass, dropout: MultilabelSharedLinearASL(in_dim, nclass, dropout),
+    'Plain': lambda in_dim, nclass, dropout: SharedBCEPlainLinear(in_dim, nclass, dropout),
+    'MSE': lambda in_dim, nclass, dropout: SharedMSELinear(in_dim, nclass, dropout)
 }

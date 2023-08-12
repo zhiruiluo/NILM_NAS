@@ -1,0 +1,29 @@
+[
+    {
+        "dataset": "REDD_multilabel",
+        "house_no": "1",
+        "win_size": 60,
+        "bit_string": "000110100011101100111000010011010101011011001010010011001111101001101100010110",
+        "out_channels": "[64, 64, 64]",
+        "lstm_hidden_features": 32,
+        "lstm_out_features": 64
+    },
+    {
+        "dataset": "REDD_multilabel",
+        "house_no": "1",
+        "win_size": 150,
+        "bit_string": "111011010101011001100101011010000000101001100011010001100001000000110100111000",
+        "out_channels": "[64, 64, 64]",
+        "lstm_hidden_features": 32,
+        "lstm_out_features": 32
+    },
+    {
+        "dataset": "REDD_multilabel",
+        "house_no": "1",
+        "win_size": 300,
+        "bit_string": "010000001011000101000101100010100001011011010111100000001111100001000111110101",
+        "out_channels": "[32, 64, 64]",
+        "lstm_hidden_features": 32,
+        "lstm_out_features": 32
+    }
+]

@@ -29,9 +29,9 @@ def clean_ax(ax: plt.Axes):
     ax.set_xlabel('')
     ax.set_ylabel('')
     
-def display_table(ax, text, spins_color=None, facecolor=None, rotation=0, axis_off=False):
+def display_table(ax, text, spins_color=None, facecolor=None, rotation=0, axis_off=False, va='center', ha='center'):
     # ax.table(text, loc='center', edges='open')
-    ax.text(0.5,0.5, text, va='center', ha='center',rotation=rotation)
+    ax.text(0.5,0.5, text, va=va, ha=ha, rotation=rotation)
     if spins_color is not None:
         set_spins_color(ax,spins_color)
     if facecolor is not None:
@@ -63,10 +63,10 @@ def plot_right_row(appliance: str, fig: plt.Figure, gs: gridspec.GridSpec, row_i
 def plot_left_row(fig: plt.Figure, gs: gridspec.GridSpec, row_idx):
     gs0 = gridspec.GridSpecFromSubplotSpec(2,1, subplot_spec=gs[row_idx])
     ax1 = fig.add_subplot(gs0[0])
-    display_table(ax1, '0', spins_color='white', facecolor='lightgrey', axis_off=True)
+    display_table(ax1, '0', spins_color='white', facecolor='lightgrey', axis_off=True, va='center',ha='left')
     
     ax2 = fig.add_subplot(gs0[1])
-    display_table(ax2, '1', spins_color='white', facecolor='lightgrey', axis_off=True)
+    display_table(ax2, '1', spins_color='white', facecolor='lightgrey', axis_off=True, va='center', ha='left')
     
 def plot_col(model: str, fig: plt.figure, gs: gridspec.GridSpec, col_idx):
     gs0 = gridspec.GridSpecFromSubplotSpec(2,2, subplot_spec=gs[col_idx])
@@ -89,10 +89,10 @@ def plot_bottom_col(fig, gs, col_idx):
     gs0 = gridspec.GridSpecFromSubplotSpec(1,2, subplot_spec=gs[col_idx])
     
     ax1 = fig.add_subplot(gs0[0])
-    display_table(ax1, '0', spins_color='white', facecolor='lightgrey', axis_off=True)
+    display_table(ax1, '0', spins_color='white', facecolor='lightgrey', axis_off=True, va='top', ha='center')
     
     ax2 = fig.add_subplot(gs0[1])
-    display_table(ax2, '1', spins_color='white', facecolor='lightgrey', axis_off=True)
+    display_table(ax2, '1', spins_color='white', facecolor='lightgrey', axis_off=True, va='top', ha='center')
 
 
 def plot_confmx(cfm, ax, show_absolute=False, show_normed=True):
@@ -171,21 +171,28 @@ def plot_all_v2():
     fig.savefig(path.as_posix())
     print(f"save confmx {path}")
     
-def plot_confusion_matrix_api(dc_confusion_matrix: dict, n_models: int, n_dataset: int, path: str, figsize, show_absolute, show_normed):
+def plot_confusion_matrix_api(dc_confusion_matrix: dict, model_list: list, n_models: int, n_dataset: int, path: str, figsize, show_absolute, show_normed):
     
+    # fig, ax = plt.subplots(figsize=figsize, layout='constrained')
+    # # ax.set_xticks([])
+    # # ax.set_yticks([])
+    # # ax.spines[['right','left', 'top', 'bottom']].set_visible(False)
     fig = plt.figure(figsize=figsize)
-    gs0 = gridspec.GridSpec(3,3, width_ratios=(1,6,1),height_ratios=(1,6,1), left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.05, hspace=0.05, figure=fig)
-    gs_top_col = gridspec.GridSpecFromSubplotSpec(1, n_models, subplot_spec=gs0[0,1])
-    gs_bottom_col = gridspec.GridSpecFromSubplotSpec(1, n_models, subplot_spec=gs0[2,1])
+    gs0 = gridspec.GridSpec(3,3, width_ratios=(.3,10,1),height_ratios=(1,10,.3), left=0.05, right=0.9, bottom=0.05, top=0.9, wspace=0.05, hspace=0.05, figure=fig)
+    # gs0.update(left=0.1,right=0.9,top=0.965,bottom=0.03,wspace=0.3,hspace=0.09)
+    gs_top_col = gridspec.GridSpecFromSubplotSpec(1, n_models, subplot_spec=gs0[0,1],wspace=0.05, hspace=0.05)
+    gs_bottom_col = gridspec.GridSpecFromSubplotSpec(1, n_models, subplot_spec=gs0[2,1],wspace=0.05, hspace=0.05)
     
-    gs_left_row = gridspec.GridSpecFromSubplotSpec(n_dataset, 1, subplot_spec=gs0[1,0])
-    gs_right_row = gridspec.GridSpecFromSubplotSpec(n_dataset, 1, subplot_spec=gs0[1,2])
+    gs_left_row = gridspec.GridSpecFromSubplotSpec(n_dataset, 1, subplot_spec=gs0[1,0],wspace=0.05, hspace=0.05)
+    gs_right_row = gridspec.GridSpecFromSubplotSpec(n_dataset, 1, subplot_spec=gs0[1,2],wspace=0.05, hspace=0.05)
     
     grid_cfm = gridspec.GridSpecFromSubplotSpec(n_dataset, n_models, wspace=0.05, hspace=0.05, subplot_spec=gs0[1,1])
     
     row_idx = 0
     col_idx = 0
-    for model_n, datasets_cfm in dc_confusion_matrix.items():
+    # for model_n, datasets_cfm in dc_confusion_matrix.items():
+    for model_n in model_list:
+        datasets_cfm = dc_confusion_matrix[model_n]
         row_idx = 0
         plot_top_col(model_n, fig, gs_top_col, col_idx)
         plot_bottom_col(fig, gs_bottom_col, col_idx)
@@ -199,12 +206,15 @@ def plot_confusion_matrix_api(dc_confusion_matrix: dict, n_models: int, n_datase
             row_idx += 1
         col_idx += 1
     
-    fig.supxlabel("Actual Appliance On/Off")
-    fig.supylabel("Detected Appliance On/Off")
-    fig.subplots_adjust(wspace=0, hspace=0)
-    fig.tight_layout()
+    fig.supxlabel("Detected Appliance On/Off")
+    fig.supylabel("Actual Appliance On/Off")
+    # ax.set_xlabel("Actual Appliance On/Off")
+    # ax.set_ylabel("Detected Appliance On/Off")
+    
+    # fig.subplots_adjust(wspace=0, hspace=0)
+    # fig.tight_layout()
     fig.savefig(path)
     print(f"save confmx {path}")
-        
+
 if __name__ == '__main__':
     plot_all_v2()

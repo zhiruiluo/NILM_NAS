@@ -226,7 +226,7 @@ class Searcher():
 
 @slurm_launch(
     exp_name='GD',
-    num_nodes=1,
+    num_nodes=3,
     num_gpus=2,
     partition='epscor',
     log_dir='logging/REDD_424_5/',
@@ -258,7 +258,7 @@ def main():
         "modelBaseConfig.epochs": 15,
         "modelBaseConfig.patience": 15,
         "modelBaseConfig.label_mode": "multilabel",
-        "modelBaseConfig.batch_size": 256,
+        "modelBaseConfig.batch_size": 512,
         "modelBaseConfig.val_batch_size": 512,
         "modelBaseConfig.test_batch_size": 512,
         "modelBaseConfig.lr": 1e-3,
@@ -278,7 +278,7 @@ def main():
     
     
     parameter_grid = {
-        "win_size": [60],
+        "win_size": [300,150,60],
         "house_no": [1],
     }
     

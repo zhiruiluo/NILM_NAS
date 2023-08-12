@@ -59,6 +59,7 @@ class Compare():
                 dc['win_size'].append(data_params['win_size'])
                 dc['stride'].append(data_params['stride'])
                 dc['training_time'].append(r.training_time)
+                dc['nas_params'].append(r.nas_params)
                 
             df = pd.DataFrame.from_dict(dc)
             df_all.append(df)
@@ -68,11 +69,15 @@ class Compare():
         return df_all
     
     def get_max_val_f1macro(self):
-        df = self.df_all.groupby(by=['exp','house_no','win_size']).max()
-        df = df.sort_values(by=['house_no','win_size','test_f1macro'], ascending=[True,True,False])
+        best_df = []
+        for keys, df in self.df_all.groupby(by=['exp','house_no','win_size']):
+            df = df.sort_values(by=['house_no','win_size','test_f1macro'], ascending=[True,True,False]).index[0]
+            best_df.append(self.df_all.iloc[[df]])
+        
+        df = pd.concat(best_df)
+        df = df.sort_values(['house_no','win_size','test_f1macro'], ascending=[True, True, False])
         path = Path('results').joinpath(f'{self.args.exp_dir.replace("/","_")}.csv')
         df.to_csv(path.as_posix())
-        
         print(f'save csv {path}')
     
 def main():

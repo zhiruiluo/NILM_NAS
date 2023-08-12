@@ -1,15 +1,21 @@
+from __future__ import annotations
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
 
 class SharedBCEPlainLinear(nn.Module):
-    def __init__(self, in_dim, nclass) -> None:
+    def __init__(self, in_dim, nclass, dropout: float | None = None) -> None:
         super().__init__()
         self.nclass = nclass
-        head = nn.Sequential(
-                nn.Linear(in_dim, nclass),
-            )
-        
+        if dropout is None:
+            head = nn.Sequential(
+                    nn.Linear(in_dim, nclass),
+                )
+        else:
+            head = nn.Sequential(
+                nn.Dropout(dropout),
+                nn.Linear(in_dim, nclass)
+            )        
         self.head = head
         self.loss_fn = nn.BCEWithLogitsLoss()
     

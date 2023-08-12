@@ -36,7 +36,7 @@ def parse_best_tsnet_json():
 
 def get_best_config(spec, list_tsnets: list, key: str):
     win_size = spec.config.datasetConfig.win_size
-    house_no = spec.config.datasetConfig.house_no
+    house_no = 1
     
     for tsnet in list_tsnets:
         if tsnet['house_no'] == str(house_no) and tsnet['win_size'] == win_size:
@@ -64,6 +64,8 @@ def loop(args: MyProgramArgs):
             "bit_string": tune.sample_from(functools.partial(get_best_config, list_tsnets=list_tsnets,key='bit_string')),
             "out_channels": tune.sample_from(functools.partial(get_best_config, list_tsnets=list_tsnets,key='out_channels')),
             "head_type": "ASL",
+            "atten": True,
+            "lstm_out_features": 32,
         } 
     }
 
@@ -96,7 +98,7 @@ def loop(args: MyProgramArgs):
 
 
 @slurm_launch(
-    exp_name="TSNET",
+    exp_name="TSNET_at_lstm",
     num_nodes=1,
     num_gpus=2,
     partition="epscor",
@@ -111,6 +113,7 @@ def main():
     args = opt.replace_params(
         {
             "modelConfig": "TSNet",
+            "datasetConfig.splits": '4:2:4',
             "datasetConfig": "REDD_multilabel",
             "nasOption.enable": True,
             "nasOption.num_cpus": 8,

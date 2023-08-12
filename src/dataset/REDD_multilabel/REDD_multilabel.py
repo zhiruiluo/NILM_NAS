@@ -167,11 +167,12 @@ class REDD_multilabel(pl.LightningDataModule):
 
     def prepare_data(self):
         folder = get_project_root().joinpath(".temp").as_posix()
-
+        print(self.config.appliances)
         selected_channels = [
             appliances[f"house_{self.config.house_no}"][app] for app in self.config.appliances
         ]
         chs = [s_ch for s_chs in selected_channels for s_ch in s_chs]
+        print(selected_channels)
         with disk_buffer(
             func=get_dataset,
             keys=str(self.config.house_no) + f"_redd_ml_s2p_{'_'.join(map(str,chs))}",
@@ -330,6 +331,7 @@ def test_visual():
     args = opt.args
     ds = REDD_multilabel(args)
 
+
 def test_count():
     from src.config_options import OptionManager
 
@@ -337,39 +339,42 @@ def test_count():
     args = opt.replace_params({'datasetConfig': 'REDD_multilabel',
                                'datasetConfig.splits': '4:2:4',
                                'datasetConfig.house_no': 3,
-                               'datasetConfig.stride': 5, 
-                               'datasetConfig.win_size': 60,
+                               'datasetConfig.stride': 30, 
+                               'datasetConfig.win_size': 300,
                                'datasetConfig.combine_mains': True})
     ds = REDD_multilabel(args)
     ds.prepare_data()
     ds.setup("fit")
-    positive = np.array([0,0,0,0], dtype=np.int32)
-    negative = np.array([0,0,0,0], dtype=np.int32)
+    positive_train = np.array([0,0,0,0], dtype=np.int32)
+    negative_train = np.array([0,0,0,0], dtype=np.int32)
     for batch in ds.train_dataloader():
         npa = batch['target'].numpy()
         s = npa.sum(axis=0).astype(np.int32)
-        positive += s
-        negative += npa.shape[0] - s
+        positive_train += s
+        negative_train += npa.shape[0] - s
         
-    print(positive, negative)
+    print(positive_train, negative_train)
     
-    positive = np.array([0,0,0,0], dtype=np.int32)
-    negative = np.array([0,0,0,0], dtype=np.int32)
+    positive_val = np.array([0,0,0,0], dtype=np.int32)
+    negative_val = np.array([0,0,0,0], dtype=np.int32)
     for batch in ds.val_dataloader():
         npa = batch['target'].numpy()
         s = npa.sum(axis=0).astype(np.int32)
-        positive += s
-        negative += npa.shape[0] - s
+        positive_val += s
+        negative_val += npa.shape[0] - s
         
-    print(positive, negative)
+    
     
     ds.setup('test')
-    positive = np.array([0,0,0,0], dtype=np.int32)
-    negative = np.array([0,0,0,0], dtype=np.int32)
+    positive_test = np.array([0,0,0,0], dtype=np.int32)
+    negative_test = np.array([0,0,0,0], dtype=np.int32)
     for batch in ds.test_dataloader():
         npa = batch['target'].numpy()
         s = npa.sum(axis=0).astype(np.int32)
-        positive += s
-        negative += npa.shape[0] - s
-        
-    print(positive, negative)
+        positive_test += s
+        negative_test += npa.shape[0] - s
+
+
+    print('train',positive_train, negative_train)
+    print('val  ', positive_val, negative_val)
+    print('test ',positive_test, negative_test)
