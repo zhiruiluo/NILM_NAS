@@ -15,6 +15,9 @@ from src.model.multilabel_head import *
 from .bitstring_decoder import convert, decode_genome
 from .decoder import ConnAndOpsDecoder
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 def lstm(input_size,hidden_size,num_layers=1,bias=True,batch_first=False,dropout=0,bidirectional=False):
     return nn.LSTM(input_size,hidden_size,num_layers,bias,batch_first,dropout,bidirectional)
@@ -54,8 +57,7 @@ class LSTM_subnet(nn.Module):
         output = self.leaky_relu(output)
         output = self.ln(output)
         _, (hn, cn) = self.lstm(output)
-        print(hn.shape)
-        return self.lazy_linear(hn)
+        return self.lazy_linear(hn[-1])
 
 
 class TSNet(LightningBaseModule):

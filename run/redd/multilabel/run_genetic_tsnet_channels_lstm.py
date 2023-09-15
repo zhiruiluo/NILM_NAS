@@ -213,7 +213,7 @@ class Searcher():
         if checkpoint and checkpoint.has_checkpoint():
             algorithm = checkpoint.load_checkpoint()
         
-        res = minimize(problem, algorithm, ('n_gen', N_GEN), copy_algorithm=False, copy_termination=False,seed=1,
+        res = minimize(problem, algorithm, ('n_gen', N_GEN), copy_algorithm=False, copy_termination=False,seed=100,
                     verbose=True, save_history=True, callback=do_every_generations)
             
         print("Threads:", res.exec_time, "res", res.F)
@@ -225,8 +225,8 @@ class Searcher():
 
 
 @slurm_launch(
-    exp_name='GDL',
-    num_nodes=1,
+    exp_name='GDL_h3_e2',
+    num_nodes=3,
     num_gpus=2,
     partition='epscor',
     log_dir='logging/REDD_424/',
@@ -244,7 +244,7 @@ def main():
         "datasetConfig": "REDD_multilabel",
         "datasetConfig.stride": 30,
         "datasetConfig.combine_mains": True,
-        "datasetConfig.imbalance_sampler": False,
+        "datasetConfig.imbalance_sampler": True,
         "datasetConfig.splits": '4:2:4',
         "modelConfig": "TSNet",
         "modelConfig.n_phases": 3,
@@ -280,7 +280,7 @@ def main():
     
     parameter_grid = {
         "win_size": [300,150,60],
-        "house_no": [3,1],
+        "house_no": [3],
     }
     
     ckp_path = Path(args.systemOption.exp_dir).joinpath('exp_checkpoint')
