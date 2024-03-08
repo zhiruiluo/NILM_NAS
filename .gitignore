@@ -1,4 +1,6 @@
-data/
+data/low_freq
+data/ukdale
+data/ukdale.zip
 results/
 logging/
 prof/

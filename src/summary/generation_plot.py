@@ -353,7 +353,10 @@ class GenerationPlot():
             ax.set_xlabel('FLOPs')
             ax.set_ylabel('Test F1-Macro')
             ax.grid(visible=True, which='major')
-            ax.legend(frameon=True, loc='lower right',framealpha=0)
+            if keys[0] == 1:
+                ax.legend(frameon=True, loc='upper right') #,framealpha=0
+            else:
+                ax.legend(frameon=True, loc='lower right') #,framealpha=0
             
             path = self.plot_dir.joinpath(f'comparison_pareto_{self.args.y_axis}_{keys[0]}_{keys[1]}_{keys[2]}.{self.args.format}')
             print("save fn", path)
